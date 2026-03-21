@@ -1,93 +1,208 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GESTIÓN - LOS GALANES</title>
-    <link href="https://fonts.googleapis.com/css2?family=Lobster&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Arial', sans-serif; background: #000; color: #fff; margin: 0; padding: 20px; text-align: center; }
-        .logo { font-family: 'Lobster', cursive; font-size: 3rem; color: #fff; margin-bottom: 30px; }
-        .status-card { background: #1a1a1a; padding: 20px; border-radius: 15px; border: 1px solid #333; margin-bottom: 20px; }
-        .status-text { font-size: 1.5rem; font-weight: bold; margin-bottom: 10px; }
-        .status-on { color: #23A80D; }
-        .status-off { color: #CF0A0A; }
-        
-        .btn-container { display: flex; flex-direction: column; gap: 15px; max-width: 400px; margin: 0 auto; }
-        .btn { padding: 20px; font-size: 1.2rem; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; text-transform: uppercase; transition: 0.3s; }
-        .btn-open { background: #23A80D; color: white; }
-        .btn-close { background: #CF0A0A; color: white; }
-        .btn-refresh { background: #444; color: white; font-size: 0.9rem; }
-        
-        .loading { display: none; margin-top: 10px; color: #888; }
-    </style>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --success: #228B22; --danger: #CC0000; --primary: #1a73e8; --bg: #f1f3f4; }
+    body { font-family: 'Roboto', sans-serif; background-color: var(--bg); margin: 0; padding: 10px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 450px; text-align: center; }
+    .nav-tabs { display: flex; margin-bottom: 15px; background: #ddd; border-radius: 12px; padding: 5px; }
+    .tab { flex: 1; padding: 12px; cursor: pointer; border-radius: 8px; font-weight: bold; color: #555; transition: 0.3s; }
+    .tab.active { background: white; color: var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 15px; }
+    h2 { font-size: 0.85rem; color: #5f6368; text-transform: uppercase; margin: 0 0 15px 0; }
+    .option-group { display: flex; gap: 10px; justify-content: center; margin-bottom: 15px; }
+    .option-btn { flex: 1; padding: 15px; border: 2px solid #dadce0; border-radius: 12px; background: white; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
+    .option-btn.selected { border-color: var(--primary); background: #e8f0fe; color: var(--primary); }
+    .option-btn.abierto.selected { background: var(--success) !important; color: white !important; border-color: var(--success); }
+    .option-btn.cerrado.selected, .option-btn.causa.selected { background: var(--danger) !important; color: white !important; border-color: var(--danger); }
+    
+    .lang-group { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+    .lang-btn { font-size: 2.5rem; cursor: pointer; filter: grayscale(100%); opacity: 0.3; border: none; background: none; transition: 0.2s; padding: 5px; }
+    .lang-btn.selected { filter: grayscale(0%); opacity: 1; transform: scale(1.1); }
+
+    input { width: 85%; padding: 12px; border: 2px solid #dadce0; border-radius: 10px; font-size: 1.8rem; text-align: center; font-weight: bold; outline: none; }
+    input[type="text"] { font-size: 1.2rem; }
+    
+    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+
+    .btn-main { width: 100%; padding: 20px; background: var(--primary); color: white; border: none; border-radius: 12px; font-size: 1.2rem; font-weight: bold; cursor: pointer; margin-top: 10px; }
+    .btn-main:disabled { background: #ccc; }
+    #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+    .modal { background: white; padding: 30px; border-radius: 20px; text-align: center; width: 80%; max-width: 280px; }
+    #resumen-provisional { text-align: left; background: #f8f9fa; padding: 15px; border-radius: 10px; margin-top: 15px; border: 1px solid #ddd; display: none; }
+    #resumen-provisional p { margin: 5px 0; font-size: 0.95rem; }
+  </style>
 </head>
 <body>
 
-    <div class="logo">Los Galanes</div>
+<div id="modal-overlay">
+  <div class="modal">
+    <h3 style="color: var(--success)">TODO OK</h3>
+    <p>Los datos se han guardado correctamente.</p>
+    <button class="btn-main" onclick="cerrarModal()">ENTENDIDO</button>
+  </div>
+</div>
 
-    <div class="status-card">
-        <div class="status-text" id="status-display">Cargando estado...</div>
-        <div id="last-update" style="font-size: 0.8rem; color: #666;"></div>
+<div class="container">
+  <div class="nav-tabs">
+    <div id="tab-apertura" class="tab active" onclick="cambiarTab('apertura')">APERTURA</div>
+    <div id="tab-cierre" class="tab" onclick="cambiarTab('cierre')">CIERRE</div>
+  </div>
+
+  <div id="view-apertura">
+    <div class="card">
+      <h2>Estado del Bar</h2>
+      <div class="option-group">
+        <div id="btn-abierto" class="option-btn abierto" onclick="gestionarEstado('ABIERTO', this)">ABIERTO</div>
+        <div id="btn-cerrado" class="option-btn cerrado" onclick="gestionarEstado('CERRADO', this)">CERRADO</div>
+      </div>
+      <h2>Causa</h2>
+      <div class="option-group">
+        <div id="btn-descanso" class="option-btn causa" onclick="select('causa', 'CERRADO POR DESCANSO', this)">DESCANSO</div>
+        <div id="btn-vacaciones" class="option-btn causa" onclick="select('causa', 'CERRADO POR VACACIONES', this)">VACACIONES</div>
+      </div>
     </div>
-
-    <div class="btn-container">
-        <button class="btn btn-open" onclick="cambiarEstado('ABIERTO')">Abrir Bar</button>
-        <button class="btn btn-close" onclick="cambiarEstado('CERRADO')">Cerrar Bar</button>
-        <button class="btn btn-refresh" onclick="obtenerEstado()">Actualizar Info</button>
+    <div class="card">
+      <h2>Idioma y Rider</h2>
+      <div class="lang-group">
+        <button id="lang-ES" class="lang-btn" onclick="select('idioma', 'ES', this)">🇪🇸</button>
+        <button id="lang-EN" class="lang-btn" onclick="select('idioma', 'EN', this)">🇬🇧</button>
+        <button id="lang-FR" class="lang-btn" onclick="select('idioma', 'FR', this)">🇫🇷</button>
+        <button id="lang-IT" class="lang-btn" onclick="select('idioma', 'IT', this)">🇮🇹</button>
+        <button id="lang-PT" class="lang-btn" onclick="select('idioma', 'PT', this)">🇵🇹</button>
+        <button id="lang-AL" class="lang-btn" onclick="select('idioma', 'AL', this)">🇩🇪</button>
+      </div>
+      <input type="number" id="rider" step="0.1" style="margin-top:15px; font-size: 1.5rem;" placeholder="Rider €">
     </div>
+    <div class="card">
+      <h2>Fondo de Caja</h2>
+      <input type="number" id="fondo" placeholder="Fondo Inicial">
+      <button id="btn-env-ap" class="btn-main" onclick="enviar('apertura')">GUARDAR APERTURA</button>
+    </div>
+  </div>
 
-    <div id="msg-loading" class="loading">Procesando cambio en Google Sheets...</div>
+  <div id="view-cierre" style="display:none">
+    <div class="card">
+      <h2>Resumen de Ventas (Hoy)</h2>
+      <button id="btn-previa" class="btn-main" onclick="obtenerTotales()" style="background:#5f6368; padding:12px; font-size:0.9rem;">
+        CONSULTAR PEDIDOS COMPLETADOS
+      </button>
+      <div id="resumen-provisional">
+        <p>Efectivo: <span id="res-efec">0</span> €</p>
+        <p>Tarjeta: <span id="res-tarj">0</span> €</p>
+        <p>Bizum: <span id="res-bizum">0</span> €</p>
+        <hr>
+        <p><b>TOTAL VENTAS:</b> <span id="res-total" style="color:var(--success); font-weight:bold;">0</span> €</p>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Efectivo Real en Caja</h2>
+      <input type="number" id="efecReal" placeholder="Efectivo Contado">
+    </div>
+    <div class="card">
+      <h2>Responsable</h2>
+      <input type="text" id="responsable" placeholder="Nombre">
+      <button id="btn-env-ci" class="btn-main" onclick="enviar('cierre')" style="background: var(--danger)">EJECUTAR CIERRE DIARIO</button>
+    </div>
+  </div>
+</div>
 
 <script>
-    const URL_GOOGLE = "https://script.google.com/macros/s/AKfycbxZduqvV4z51oj6PVCfV4YkIC9FgNcEL-pLEmJ-pX7l8Ik4TY8vMAjCW8qSYdEP_zMe/exec";
+  // URL de tu script de Google (IMPORTANTE: Asegúrate que sea la correcta)
+  const URL_GOOGLE = "https://script.google.com/macros/s/AKfycbxZduqvV4z51oj6PVCfV4YkIC9FgNcEL-pLEmJ-pX7l8Ik4TY8vMAjCW8qSYdEP_zMe/exec";
 
-    async function obtenerEstado() {
-        try {
-            const res = await fetch(URL_GOOGLE);
-            const data = await res.json();
-            const abierto = data.barAbierto;
-            
-            const display = document.getElementById('status-display');
-            display.innerText = abierto ? "● BAR ABIERTO" : "○ BAR CERRADO";
-            display.className = "status-text " + (abierto ? "status-on" : "status-off");
-            document.getElementById('last-update').innerText = "Sincronizado: " + new Date().toLocaleTimeString();
-        } catch (e) {
-            document.getElementById('status-display').innerText = "Error de conexión";
-        }
+  let config = { estado: '', causa: '', idioma: '' };
+
+  function cambiarTab(tipo) {
+    document.getElementById('tab-apertura').className = 'tab ' + (tipo === 'apertura' ? 'active' : '');
+    document.getElementById('tab-cierre').className = 'tab ' + (tipo === 'cierre' ? 'active' : '');
+    document.getElementById('view-apertura').style.display = tipo === 'apertura' ? 'block' : 'none';
+    document.getElementById('view-cierre').style.display = tipo === 'cierre' ? 'block' : 'none';
+  }
+
+  function select(campo, valor, el) {
+    const group = el.parentElement.querySelectorAll('.lang-btn, .option-btn');
+    group.forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+    config[campo] = valor;
+  }
+
+  function gestionarEstado(v, el) {
+    select('estado', v, el);
+    if (v === 'ABIERTO') {
+      config.causa = '';
+      document.querySelectorAll('.causa').forEach(b => b.classList.remove('selected'));
+    } else {
+      select('causa', 'CERRADO POR DESCANSO', document.getElementById('btn-descanso'));
     }
+  }
 
-    async function cambiarEstado(nuevo) {
-        if(!confirm("¿Confirmas cambiar el estado a " + nuevo + "?")) return;
-        
-        document.getElementById('msg-loading').style.display = 'block';
-        
-        const body = {
-            accion: 'cambiar_apertura',
-            nuevoEstado: nuevo
-        };
+  async function obtenerTotales() {
+    const btn = document.getElementById('btn-previa');
+    btn.innerText = 'CALCULANDO...';
+    try {
+      const res = await fetch(URL_GOOGLE);
+      const data = await res.json();
+      const t = data.ventas;
+      btn.innerText = 'RECALCULAR';
+      document.getElementById('resumen-provisional').style.display = 'block';
+      document.getElementById('res-efec').innerText = t.efectivo.toFixed(2);
+      document.getElementById('res-tarj').innerText = t.tarjeta.toFixed(2);
+      document.getElementById('res-bizum').innerText = t.bizum.toFixed(2);
+      document.getElementById('res-total').innerText = (t.efectivo + t.tarjeta + t.bizum).toFixed(2);
+    } catch(e) { btn.innerText = 'ERROR'; }
+  }
 
-        try {
-            // Usamos mode: 'no-cors' para evitar bloqueos, aunque no podamos leer la respuesta
-            await fetch(URL_GOOGLE, {
-                method: 'POST',
-                mode: 'no-cors',
-                body: JSON.stringify(body)
-            });
-            
-            // Esperamos un segundo y refrescamos
-            setTimeout(() => {
-                document.getElementById('msg-loading').style.display = 'none';
-                obtenerEstado();
-            }, 1500);
-            
-        } catch (e) {
-            alert("Error al enviar comando");
-            document.getElementById('msg-loading').style.display = 'none';
+  async function enviar(modo) {
+    const btn = modo === 'apertura' ? document.getElementById('btn-env-ap') : document.getElementById('btn-env-ci');
+    btn.innerText = 'PROCESANDO...';
+    btn.disabled = true;
+
+    const payload = {
+      accion: 'guardar_config',
+      idioma: config.idioma,
+      rider: document.getElementById('rider').value,
+      estado: (modo === 'apertura') ? config.estado : null,
+      causa: (modo === 'apertura') ? config.causa : null,
+      fondo: (modo === 'apertura') ? document.getElementById('fondo').value : null,
+      efectivoReal: (modo === 'cierre') ? document.getElementById('efecReal').value : null,
+      responsable: document.getElementById('responsable').value
+    };
+
+    try {
+      await fetch(URL_GOOGLE, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerText = modo === 'apertura' ? 'GUARDAR APERTURA' : 'EJECUTAR CIERRE';
+        document.getElementById('modal-overlay').style.display = 'flex';
+        if(modo === 'apertura') document.getElementById('fondo').value = '';
+        else {
+          document.getElementById('efecReal').value = '';
+          document.getElementById('resumen-provisional').style.display = 'none';
         }
-    }
+      }, 1500);
+    } catch(e) { alert("Error al conectar"); btn.disabled = false; }
+  }
 
-    window.onload = obtenerEstado;
+  function cerrarModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+
+  // Carga inicial de datos desde el Google Sheet
+  window.onload = async () => {
+    try {
+      const res = await fetch(URL_GOOGLE);
+      const data = await res.json();
+      document.getElementById('rider').value = data.config.rider;
+      if(data.config.estado === 'ABIERTO') gestionarEstado('ABIERTO', document.getElementById('btn-abierto'));
+      else gestionarEstado('CERRADO', document.getElementById('btn-cerrado'));
+      const lb = document.getElementById('lang-' + data.config.idioma);
+      if(lb) select('idioma', data.config.idioma, lb);
+    } catch(e) {}
+  };
 </script>
 </body>
 </html>
