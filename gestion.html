@@ -19,23 +19,21 @@
     .option-btn.selected { border-color: var(--primary); background: #e8f0fe; color: var(--primary); }
     .option-btn.abierto.selected { background: var(--success) !important; color: white !important; border-color: var(--success); }
     .option-btn.cerrado.selected, .option-btn.causa.selected { background: var(--danger) !important; color: white !important; border-color: var(--danger); }
-    
     .lang-group { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
     .lang-btn { font-size: 2.5rem; cursor: pointer; filter: grayscale(100%); opacity: 0.3; border: none; background: none; transition: 0.2s; padding: 5px; }
     .lang-btn.selected { filter: grayscale(0%); opacity: 1; transform: scale(1.1); }
-
-    input { width: 85%; padding: 12px; border: 2px solid #dadce0; border-radius: 10px; font-size: 1.8rem; text-align: center; font-weight: bold; outline: none; }
-    input[type="text"] { font-size: 1.2rem; }
     
-    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    input[type=number] { -moz-appearance: textfield; }
-
+    /* Contenedor para el símbolo € */
+    .input-wrapper { position: relative; width: 85%; margin: 0 auto; }
+    .input-wrapper input { width: 100%; padding: 12px; border: 2px solid #dadce0; border-radius: 10px; font-size: 1.8rem; text-align: center; font-weight: bold; outline: none; box-sizing: border-box; }
+    .input-wrapper::after { content: "€"; position: absolute; right: 15px; top: 50%; transform: translateY(-50%); font-size: 1.5rem; color: #888; font-weight: bold; }
+    
+    input[type="text"] { font-size: 1.2rem; }
     .btn-main { width: 100%; padding: 20px; background: var(--primary); color: white; border: none; border-radius: 12px; font-size: 1.2rem; font-weight: bold; cursor: pointer; margin-top: 10px; }
-    .btn-main:disabled { background: #ccc; }
+    .btn-main:disabled { background: #ccc; cursor: not-allowed; }
     #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
     .modal { background: white; padding: 30px; border-radius: 20px; text-align: center; width: 80%; max-width: 280px; }
     #resumen-provisional { text-align: left; background: #f8f9fa; padding: 15px; border-radius: 10px; margin-top: 15px; border: 1px solid #ddd; display: none; }
-    #resumen-provisional p { margin: 5px 0; font-size: 0.95rem; }
   </style>
 </head>
 <body>
@@ -77,11 +75,15 @@
         <button id="lang-PT" class="lang-btn" onclick="select('idioma', 'PT', this)">🇵🇹</button>
         <button id="lang-AL" class="lang-btn" onclick="select('idioma', 'AL', this)">🇩🇪</button>
       </div>
-      <input type="number" id="rider" step="0.1" style="margin-top:15px; font-size: 1.5rem;" placeholder="Rider €">
+      <div class="input-wrapper" style="margin-top:15px;">
+        <input type="number" id="rider" step="0.1" placeholder="Rider">
+      </div>
     </div>
     <div class="card">
       <h2>Fondo de Caja</h2>
-      <input type="number" id="fondo" placeholder="Fondo Inicial">
+      <div class="input-wrapper">
+        <input type="number" id="fondo" placeholder="0.00">
+      </div>
       <button id="btn-env-ap" class="btn-main" onclick="enviar('apertura')">GUARDAR APERTURA</button>
     </div>
   </div>
@@ -89,8 +91,8 @@
   <div id="view-cierre" style="display:none">
     <div class="card">
       <h2>Resumen de Ventas (Hoy)</h2>
-      <button id="btn-previa" class="btn-main" onclick="obtenerTotales()" style="background:#5f6368; padding:12px; font-size:0.9rem;">
-        CONSULTAR PEDIDOS COMPLETADOS
+      <button id="btn-previa" class="btn-main" onclick="obtenerInfoActual()" style="background:#5f6368; padding:12px; font-size:0.9rem;">
+        CONSULTAR VENTAS ACTUALES
       </button>
       <div id="resumen-provisional">
         <p>Efectivo: <span id="res-efec">0</span> €</p>
@@ -102,19 +104,22 @@
     </div>
     <div class="card">
       <h2>Efectivo Real en Caja</h2>
-      <input type="number" id="efecReal" placeholder="Efectivo Contado">
+      <div class="input-wrapper">
+        <input type="number" id="efecReal" placeholder="Contado">
+      </div>
     </div>
     <div class="card">
       <h2>Responsable</h2>
-      <input type="text" id="responsable" placeholder="Nombre">
+      <div class="input-wrapper" style="border:none;">
+        <input type="text" id="responsable" placeholder="Nombre" style="font-size: 1.2rem; border: 2px solid #dadce0;">
+      </div>
       <button id="btn-env-ci" class="btn-main" onclick="enviar('cierre')" style="background: var(--danger)">EJECUTAR CIERRE DIARIO</button>
     </div>
   </div>
 </div>
 
 <script>
-  // URL de tu script de Google (IMPORTANTE: Asegúrate que sea la correcta)
-  const URL_GOOGLE = "https://script.google.com/macros/s/AKfycbxZduqvV4z51oj6PVCfV4YkIC9FgNcEL-pLEmJ-pX7l8Ik4TY8vMAjCW8qSYdEP_zMe/exec";
+  const URL_GOOGLE = "https://script.google.com/macros/s/AKfycbycOK0pxEuk5V8GSkvevu3WBtACPgieRxCx_wdSkKFua7blyUVpBSCsdo0Z4d0T-1P2/exec";
 
   let config = { estado: '', causa: '', idioma: '' };
 
@@ -142,25 +147,30 @@
     }
   }
 
-  async function obtenerTotales() {
+  async function obtenerInfoActual() {
     const btn = document.getElementById('btn-previa');
     btn.innerText = 'CALCULANDO...';
     try {
       const res = await fetch(URL_GOOGLE);
       const data = await res.json();
       const t = data.ventas;
+      
       btn.innerText = 'RECALCULAR';
       document.getElementById('resumen-provisional').style.display = 'block';
       document.getElementById('res-efec').innerText = t.efectivo.toFixed(2);
       document.getElementById('res-tarj').innerText = t.tarjeta.toFixed(2);
       document.getElementById('res-bizum').innerText = t.bizum.toFixed(2);
       document.getElementById('res-total').innerText = (t.efectivo + t.tarjeta + t.bizum).toFixed(2);
-    } catch(e) { btn.innerText = 'ERROR'; }
+      
+      document.getElementById('rider').value = data.config.rider;
+    } catch (e) {
+      btn.innerText = 'ERROR AL CARGAR';
+    }
   }
 
   async function enviar(modo) {
     const btn = modo === 'apertura' ? document.getElementById('btn-env-ap') : document.getElementById('btn-env-ci');
-    btn.innerText = 'PROCESANDO...';
+    btn.innerText = 'ENVIANDO...';
     btn.disabled = true;
 
     const payload = {
@@ -175,33 +185,50 @@
     };
 
     try {
-      await fetch(URL_GOOGLE, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+      await fetch(URL_GOOGLE, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify(payload)
+      });
+
       setTimeout(() => {
         btn.disabled = false;
         btn.innerText = modo === 'apertura' ? 'GUARDAR APERTURA' : 'EJECUTAR CIERRE';
         document.getElementById('modal-overlay').style.display = 'flex';
         if(modo === 'apertura') document.getElementById('fondo').value = '';
-        else {
-          document.getElementById('efecReal').value = '';
-          document.getElementById('resumen-provisional').style.display = 'none';
-        }
       }, 1500);
-    } catch(e) { alert("Error al conectar"); btn.disabled = false; }
+    } catch (e) {
+      alert("Error al conectar");
+      btn.disabled = false;
+    }
   }
 
-  function cerrarModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+  function cerrarModal() {
+    document.getElementById('modal-overlay').style.display = 'none';
+  }
 
-  // Carga inicial de datos desde el Google Sheet
   window.onload = async () => {
     try {
       const res = await fetch(URL_GOOGLE);
       const data = await res.json();
-      document.getElementById('rider').value = data.config.rider;
-      if(data.config.estado === 'ABIERTO') gestionarEstado('ABIERTO', document.getElementById('btn-abierto'));
-      else gestionarEstado('CERRADO', document.getElementById('btn-cerrado'));
-      const lb = document.getElementById('lang-' + data.config.idioma);
-      if(lb) select('idioma', data.config.idioma, lb);
-    } catch(e) {}
+      const info = data.config;
+      
+      // Cargar Rider
+      document.getElementById('rider').value = info.rider;
+      
+      // Cargar Estado: Forzamos visualmente la selección que venga del Excel
+      if(info.estado === 'ABIERTO') {
+        gestionarEstado('ABIERTO', document.getElementById('btn-abierto'));
+      } else {
+        gestionarEstado('CERRADO', document.getElementById('btn-cerrado'));
+      }
+      
+      // Cargar Idioma
+      const idi = info.idioma || 'ES';
+      const lb = document.getElementById('lang-' + idi);
+      if(lb) select('idioma', idi, lb);
+
+    } catch (e) { console.log("Carga inicial fallida"); }
   };
 </script>
 </body>
