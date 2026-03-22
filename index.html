@@ -469,7 +469,7 @@ async function confirmarEnvio() {
   const obs = document.getElementById("obs").value.trim().toUpperCase();
   
   let productosArr = []; 
-  let detallesParaTicket = []; // <--- NUEVO: Para que el ticket tenga precios
+  let detallesParaTicket = []; // <-- ESTO ES LO QUE NECESITA EL TICKET
   let subtotal = 0;
 
   for (let key in pedido) {
@@ -477,23 +477,24 @@ async function confirmarEnvio() {
     let nSalsa = (item.salsa_id !== "SIN_SALSA") ? " (" + getTrad(item.salsa_id, 1).toUpperCase() + ")" : "";
     let nombreCompleto = getTrad(item.nombre, 1).toUpperCase() + nSalsa;
     
+    // Texto para la columna RESUMEN (lo que ya tenías)
     productosArr.push(item.cant + "X " + nombreCompleto);
     
-    // Guardamos objeto detallado para el ticket
+    // Objeto detallado para la columna O (lo que necesita el TICKET)
     detallesParaTicket.push({
       nombre: nombreCompleto,
       cantidad: item.cant,
-      precio: item.precio // Aquí va el precio unitario
+      precio: item.precio
     });
     
     subtotal += (item.cant * item.precio);
   }
 
-  // Si es ENVÍO, el total debe incluir el Rider
   if (modInput === "ENVIO") {
     subtotal += parseFloat(datosWeb.config.RIDER_PRECIO || 0);
   }
 
+  // Construimos el paquete de datos para Google Sheets
   const payload = { 
     accion: 'guardar_pedido', 
     nombre, 
@@ -504,17 +505,20 @@ async function confirmarEnvio() {
     observaciones: obs, 
     total: subtotal, 
     resumenProductos: productosArr.join("\n"),
-    pedidoOriginal: JSON.stringify({ productos: detallesParaTicket }) // <--- CLAVE PARA EL TICKET
+    // ENVIAMOS EL DETALLE COMPLETO AQUÍ:
+    pedidoOriginal: JSON.stringify({ productos: detallesParaTicket }) 
   };
 
   try {
+    // Enviamos a Apps Script
     await fetch(URL_GAS, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
     setTimeout(() => { 
       pedido = {}; 
-      document.getElementById("total-val").textContent = "0"; // Limpiar total visual
+      document.getElementById("total-val").textContent = "0"; 
       abrirModal('ENVIADO'); 
     }, 500);
   } catch (e) { 
+    console.error(e);
     alert("Error de red"); 
     abrirModal('REVISION'); 
   }
