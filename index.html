@@ -468,20 +468,56 @@ async function confirmarEnvio() {
   const direccion = document.getElementById("dir-cliente").value.trim().toUpperCase();
   const obs = document.getElementById("obs").value.trim().toUpperCase();
   
-  let productosArr = []; let subtotal = 0;
-  for (let key in pedido) {
-    let nSalsa = (pedido[key].salsa_id !== "SIN_SALSA") ? " (" + getTrad(pedido[key].salsa_id, 1).toUpperCase() + ")" : "";
-    productosArr.push(pedido[key].cant + "X " + getTrad(pedido[key].nombre, 1).toUpperCase() + nSalsa);
-    subtotal += (pedido[key].cant * pedido[key].precio);
-  }
-  if (modInput === "ENVIO") subtotal += parseFloat(datosWeb.config.RIDER_PRECIO || 0);
+  let productosArr = []; 
+  let detallesParaTicket = []; // <--- NUEVO: Para que el ticket tenga precios
+  let subtotal = 0;
 
-  const payload = { accion: 'guardar_pedido', nombre, telefono: (prefRadio==="+34"?"34":"")+telLimpio, modalidad: modInput, metodoPago: pago, direccion, observaciones: obs, total: subtotal, resumenProductos: productosArr.join("\n") };
+  for (let key in pedido) {
+    let item = pedido[key];
+    let nSalsa = (item.salsa_id !== "SIN_SALSA") ? " (" + getTrad(item.salsa_id, 1).toUpperCase() + ")" : "";
+    let nombreCompleto = getTrad(item.nombre, 1).toUpperCase() + nSalsa;
+    
+    productosArr.push(item.cant + "X " + nombreCompleto);
+    
+    // Guardamos objeto detallado para el ticket
+    detallesParaTicket.push({
+      nombre: nombreCompleto,
+      cantidad: item.cant,
+      precio: item.precio // Aquí va el precio unitario
+    });
+    
+    subtotal += (item.cant * item.precio);
+  }
+
+  // Si es ENVÍO, el total debe incluir el Rider
+  if (modInput === "ENVIO") {
+    subtotal += parseFloat(datosWeb.config.RIDER_PRECIO || 0);
+  }
+
+  const payload = { 
+    accion: 'guardar_pedido', 
+    nombre, 
+    telefono: (prefRadio==="+34"?"34":"") + telLimpio, 
+    modalidad: modInput, 
+    metodoPago: pago, 
+    direccion, 
+    observaciones: obs, 
+    total: subtotal, 
+    resumenProductos: productosArr.join("\n"),
+    pedidoOriginal: JSON.stringify({ productos: detallesParaTicket }) // <--- CLAVE PARA EL TICKET
+  };
 
   try {
     await fetch(URL_GAS, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
-    setTimeout(() => { pedido = {}; abrirModal('ENVIADO'); }, 500);
-  } catch (e) { alert("Error de red"); abrirModal('REVISION'); }
+    setTimeout(() => { 
+      pedido = {}; 
+      document.getElementById("total-val").textContent = "0"; // Limpiar total visual
+      abrirModal('ENVIADO'); 
+    }, 500);
+  } catch (e) { 
+    alert("Error de red"); 
+    abrirModal('REVISION'); 
+  }
 }
 </script>
 </body>
