@@ -92,29 +92,37 @@ function setTab(est,id){
  render()
 }
 
-async function refresh(){
+async function refresh() {
   try {
-    // Petición ultra-simple para evitar bloqueos de CORS
+    console.log("Intentando conectar con Google...");
     const respuesta = await fetch(URL_GAS + "?v=monitor_data&t=" + new Date().getTime());
     
-    // Verificamos si la respuesta es válida
-    if (!respuesta.ok) return;
+    if (!respuesta.ok) {
+      console.error("Error de red:", respuesta.statusText);
+      return;
+    }
 
     const data = await respuesta.json();
-    
-    if(data && data.pedidos){
-      if(inicializado && data.pedidos.length > pedidosCache.length) reproducirAviso();
+    console.log("Datos recibidos:", data);
+
+    if (data && data.pedidos) {
+      // 1. Guardamos los pedidos en el sistema
+      if (inicializado && data.pedidos.length > pedidosCache.length) {
+        reproducirAviso();
+      }
       pedidosCache = data.pedidos;
-      
+
+      // 2. Actualizamos la configuración (Mayúsculas/Minúsculas según Excel)
       configGlobal = {
         nombreBar: data.nombreBar || "Bar Los Galanes",
         bizumTlf: data.bizum || "",
         enlacePago: data.pagoSeguro || ""
       };
 
+      // 3. Conteo de pedidos por pestañas
       let c1=0, c2=0, c3=0, c4=0;
       pedidosCache.forEach((p, i) => {
-        if (i === 0) return;
+        if (i === 0) return; // Saltamos el encabezado
         let est = String(p[8] || "").toUpperCase().trim();
         if (est === 'ESPERANDO COBRO') c1++;
         if (est === 'PENDIENTE') c2++;
@@ -122,18 +130,24 @@ async function refresh(){
         if (est === 'ELIMINADO') c4++;
       });
 
+      // 4. Actualizamos los textos de la interfaz
       document.getElementById('count-t1').innerText = c1 > 0 ? c1 : "";
       document.getElementById('count-t2').innerText = c2 > 0 ? c2 : "";
       document.getElementById('count-t3').innerText = c3 > 0 ? c3 : "";
       document.getElementById('count-t4').innerText = c4 > 0 ? c4 : "";
 
-      inicializado=true;
       document.getElementById('ui-nombre-bar').innerText = configGlobal.nombreBar;
-      document.getElementById('total-count').innerText = "PEDIDOS: " + (pedidosCache.length > 0 ? pedidosCache.length-1 : 0);
-      render();
+      document.getElementById('total-count').innerText = "PEDIDOS: " + (pedidosCache.length - 1);
+
+      // 5. Dibujamos los pedidos en pantalla
+      inicializado = true;
+      render(); 
+    } else {
+      console.warn("La respuesta no contiene pedidos válidos.");
     }
-  } catch(e) { 
-    console.error("Error cargando monitor:", e); 
+  } catch (error) {
+    console.error("Error crítico en el monitor:", error);
+    document.getElementById('total-count').innerText = "Error de conexión";
   }
 }
   
