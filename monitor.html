@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <base target="_top">
+ <meta charset="UTF-8">
+ <link href="https://fonts.googleapis.com/css2?family=Lobster&display=swap" rel="stylesheet">
+ <style>
+   body { font-family: 'Arial', sans-serif; background: #000; color: #fff; margin: 0; display: flex; height: 100vh; overflow: hidden; font-size: 13px; }
+   .sidebar { width: 230px; background: #111; padding: 15px; border-right: 1px solid #333; display: flex; flex-direction: column; }
+   .nombre-monitor { font-family: 'Lobster', cursive; font-size: 1.9rem; color: #fff; text-align: center; margin-bottom: 20px; text-shadow: 0 0 10px rgba(255,255,255,0.4); }
+   .tab { padding: 12px; margin-bottom: 8px; cursor: pointer; background: #1a1a1a; text-align: center; border-radius: 8px; color: #666; font-weight: bold; border: 1px solid transparent; text-transform: uppercase; font-size: 12px; }
+   .tab.active { background: #333; color: #fff; border: 1px solid #fff; }
+   .main { flex: 1; overflow-y: auto; padding: 20px; background: #000; }
+   .card { background: #1a1a1a; border-radius: 12px; padding: 15px; margin-bottom: 15px; border: 1px solid #333; position: relative; }
+   .txt-base { font-size: 24px; line-height: 1.2; margin-bottom: 6px; text-transform: uppercase; }
+   .negrita { font-weight: bold; }
+   .color-gris { color: #C6C3C3; }
+   .color-blanco { color: #FFFFFF; }
+   .pago-caja { font-size: 15px; color: #fff; padding: 5px 10px; border-radius: 4px; display: inline-block; margin-bottom: 8px; font-weight: bold; text-transform: uppercase; }
+   .pago-verde { background:#12B04C }
+   .pago-naranja { background:#E6B109 }
+   .pago-rojo { background:#B50E05 }
+   .pago-gris { background:#555 }
+   .comm-group { display:flex; gap:5px; margin:15px 0; }
+   .btn-comm { flex:1; background:#222; color:#ccc; border:1px solid #444; padding:8px; border-radius:5px; font-size:10px; font-weight:bold; text-transform:uppercase; text-align:center; cursor:pointer; }
+   .btn-group { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+   .btn-g { flex:1; padding:12px; border-radius:10px; font-size:0.9rem; font-weight:bold; cursor:pointer; border:none; text-transform:uppercase; color:white; min-width:120px; }
+   .footer-btns { margin-top:auto; display:flex; flex-direction:column; gap:8px; }
+   .btn-vaciar { background:#d61515; color:#fff; border:none; padding:10px; border-radius:5px; cursor:pointer; font-size:11px; text-transform:uppercase; font-weight:bold; }
+   .btn-fullscreen { background:#444; color:#fff; border:none; padding:10px; border-radius:5px; cursor:pointer; font-size:11px; text-transform:uppercase; font-weight:bold; }
+   .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+   .modal-content { background: #FFFFFF; padding: 40px; border-radius: 20px; text-align: center; max-width: 600px; width: 90%; }
+   .modal-title { font-size: 40px; color: #000; margin-bottom: 20px; font-weight: bold; }
+   .modal-text { font-size: 25px; color: #000; margin-bottom: 30px; }
+   .btn-modal-ok { background: #000; color: #FFF; font-weight: bold; font-size: 50px; padding: 10px 60px; border: none; border-radius: 10px; cursor: pointer; }
+ </style>
+</head>
+<body onclick="activarAudio()">
+
+<audio id="audioAviso" src="https://notificationsounds.com/storage/sounds/notifications/glass.mp3"></audio>
+<iframe id="printFrame" style="display:none;"></iframe>
+
+<div id="modalVaciar" class="modal-overlay" onclick="cerrarModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal-title">VACIAR PAPELERA</div>
+    <div class="modal-text">¿Quiere eliminar todos los pedidos en la papelera?</div>
+    <button class="btn-modal-ok" onclick="confirmarVaciar()">OK</button>
+  </div>
+</div>
+
+<div class="sidebar">
+ <div class="nombre-monitor" id="ui-nombre-bar">Cargando...</div>
+ <div id="t1" class="tab active" onclick="setTab('ESPERANDO COBRO','t1')">COBROS <span id="count-t1"></span></div>
+ <div id="t2" class="tab" onclick="setTab('PENDIENTE','t2')">COCINA <span id="count-t2"></span></div>
+ <div id="t3" class="tab" onclick="setTab('COMPLETADO','t3')">HISTORIAL <span id="count-t3"></span></div>
+ <div id="t4" class="tab" onclick="setTab('ELIMINADO','t4')">PAPELERA <span id="count-t4"></span></div>
+ <div class="footer-btns">
+   <button class="btn-fullscreen" onclick="toggleFullScreen()">Pantalla Completa</button>
+   <button class="btn-vaciar" onclick="abrirModalVaciar()">Vaciar Papelera</button>
+   <div id="total-count" style="font-size:10px;color:#444;text-align:center;margin-top:5px;">Conectando...</div>
+ </div>
+</div>
+
+<div id="main" class="main"></div>
+
+<script>
+// URL DE TU PROYECTO DE GOOGLE (MISMA QUE CARTA Y GESTIÓN)
+const URL_GAS = "https://script.google.com/macros/s/AKfycbxSnZMQP9AxOyUpkLJYo1HD10yK1M96o8m5C5KzHGwR6HubEH8mZxydBcOKGkITsYUVPQ/exec";
+
+let estadoActual='ESPERANDO COBRO'
+let pedidosCache=[]
+let configGlobal={}
+let inicializado=false
+let audioPermitido=false
+
+function activarAudio(){
+ if(!audioPermitido){
+  audioPermitido=true
+  const a=document.getElementById('audioAviso')
+  if(a)a.play().then(()=>{a.pause();a.currentTime=0}).catch(e=>{})
+ }
+}
+
+function toggleFullScreen(){
+ if(!document.fullscreenElement) document.documentElement.requestFullscreen()
+ else document.exitFullscreen()
+}
+
+function setTab(est,id){
+ estadoActual=est
+ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'))
+ document.getElementById(id).classList.add('active')
+ render()
+}
+
+async function refresh(){
+ try {
+  const res = await fetch(URL_GAS + "?v=monitor_data");
+  const data = await res.json();
+  
+  if(data && data.pedidos){
+   if(inicializado && data.pedidos.length > pedidosCache.length) reproducirAviso();
+   pedidosCache = data.pedidos;
+   configGlobal = {
+    nombreBar: data.nombreBar || "Bar Los Galanes",
+    bizumTlf: data.bizum || "",
+    enlacePago: data.pagoSeguro || ""
+   };
+
+   // Contadores
+   let c1=0, c2=0, c3=0, c4=0;
+   pedidosCache.forEach((p, i) => {
+     if (i === 0) return;
+     let est = String(p[8] || "").toUpperCase().trim();
+     if (est === 'ESPERANDO COBRO') c1++;
+     if (est === 'PENDIENTE') c2++;
+     if (est === 'COMPLETADO') c3++;
+     if (est === 'ELIMINADO') c4++;
+   });
+
+   document.getElementById('count-t1').innerText = c1 > 0 ? c1 : "";
+   document.getElementById('count-t2').innerText = c2 > 0 ? c2 : "";
+   document.getElementById('count-t3').innerText = c3 > 0 ? c3 : "";
+   document.getElementById('count-t4').innerText = c4 > 0 ? c4 : "";
+
+   inicializado=true;
+   document.getElementById('ui-nombre-bar').innerText = configGlobal.nombreBar;
+   document.getElementById('total-count').innerText = "PEDIDOS: " + (pedidosCache.length > 0 ? pedidosCache.length-1 : 0);
+   render();
+  }
+ } catch(e) { console.error("Error cargando monitor", e); }
+}
+
+function reproducirAviso(){
+ if(!audioPermitido)return
+ const a=document.getElementById('audioAviso')
+ if(a){a.currentTime=0;a.play().catch(e=>{})}
+}
+
+function enviarMensaje(tipo, indexPedido){
+ const p = pedidosCache[indexPedido];
+ if(!p) return;
+
+ const idPed = p[0];
+ const telefonoRaw = String(p[3]||"");
+ const modalidad = (p[4]||"").toUpperCase();
+ const importe = p[7]||"0";
+ const estado = (p[8]||"").toUpperCase();
+ const pago = (p[9]||"").toUpperCase();
+ const direccion = p[10]||"";
+
+ const bar = configGlobal.nombreBar;
+ const bizum = configGlobal.bizumTlf;
+ const enlaceRevolut = configGlobal.enlacePago;
+
+ let msg = "";
+
+ if(estado === "ESPERANDO COBRO"){
+  if(pago.includes("EFECTIVO")) msg = bar + "\nPedido Nº " + idPed + "\nImporte: " + importe + " €\nPuede proceder al pago en EFECTIVO en barra";
+  else if(pago.includes("TARJETA")) msg = bar + "\nPedido Nº " + idPed + "\nImporte: " + importe + " €\nPuede proceder al pago con DATÁFONO en barra o usar este enlace de pago seguro:\n" + enlaceRevolut;
+  else if(pago.includes("BIZUM")) msg = bar + "\nPuede proceder al pago por BIZUM al teléfono: " + bizum + "\nConcepto: " + idPed + "\nImporte: " + importe + " €";
+ }
+ else if(estado === "PENDIENTE"){
+  if(modalidad.includes("ENVIO") || modalidad.includes("ENVÍO")) msg = bar + "\nPedido Nº " + idPed + "\n¡Su pedido está en camino a " + direccion + "!\n¡Qué lo disfrute!";
+  else msg = bar + "\nPedido Nº " + idPed + "\nPuede pasar por barra a recoger su pedido\n¡Qué lo disfrute!";
+ } else { msg = bar + "\nPedido Nº " + idPed + "\n……………………………"; }
+
+ let telfLimpio = telefonoRaw.replace(/'/g, "").replace(/\D/g, "");
+ if (telfLimpio.startsWith("3434")) telfLimpio = telfLimpio.substring(2);
+ const texto = encodeURIComponent(msg);
+
+ if (tipo === "WA") window.open("https://wa.me/" + telfLimpio + "?text=" + texto, "_blank");
+ else if (tipo === "SMS") window.open("sms:+" + telfLimpio + "?body=" + texto);
+}
+
+function render(){
+ const cont=document.getElementById('main')
+ if(!pedidosCache || pedidosCache.length===0)return
+ const filtrados=[]
+ pedidosCache.forEach((p,i)=>{
+  if(i>0 && String(p[8]||"").toUpperCase().trim()===estadoActual) filtrados.push(i)
+ })
+ cont.innerHTML=filtrados.length===0 ? '<div style="color:#333;font-size:1.5rem;text-align:center;margin-top:100px;font-weight:bold;">BANDEJA VACÍA</div>' : ""
+
+ filtrados.forEach(idx=>{
+  const p=pedidosCache[idx];
+  const idPed=p[0];
+  const cliente=p[2]||"CLIENTE";
+  const telefono=p[3]||"";
+  const items=p[5]||"";
+  const pago=(p[9]||"").toUpperCase();
+  let clasePago=pago.includes("EFECTIVO")?"pago-verde":pago.includes("TARJETA")?"pago-naranja":pago.includes("BIZUM")?"pago-rojo":"pago-gris";
+
+  let botonesEstado="";
+  if(estadoActual==="ESPERANDO COBRO"){
+   botonesEstado='<button class="btn-g" style="background:#23A80D;" onclick="cambiar(\''+idPed+'\',\'PENDIENTE\')">PAGADO (A COCINA)</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\''+idPed+'\',\'ELIMINADO\')">ELIMINAR</button>';
+  } else if(estadoActual==="PENDIENTE"){
+   botonesEstado='<button class="btn-g" style="background:#2768F5;" onclick="cambiar(\''+idPed+'\',\'COMPLETADO\')">PEDIDO LISTO</button><button class="btn-g" style="background:#DBDBDB;color:#333;" onclick="cambiar(\''+idPed+'\',\'ESPERANDO COBRO\')">NO PAGADO</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\''+idPed+'\',\'ELIMINADO\')">ELIMINAR</button>';
+  } else if(estadoActual==="COMPLETADO"){
+   botonesEstado='<button class="btn-g" style="background:#DBDBDB;color:#333;" onclick="cambiar(\''+idPed+'\',\'ESPERANDO COBRO\')">RECUPERAR</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\''+idPed+'\',\'ELIMINADO\')">ELIMINAR</button>';
+  } else if(estadoActual==="ELIMINADO"){
+   botonesEstado='<button class="btn-g" style="background:#C5C4C4;color:#333;" onclick="cambiar(\''+idPed+'\',\'ESPERANDO COBRO\')">RECUPERAR</button>';
+  }
+
+  let htmlCrono = "";
+  if (estadoActual === "PENDIENTE") {
+    const horaInicioStr = p[1]; // Usamos la columna de fecha/hora
+    if (horaInicioStr) {
+      const inicio = new Date(horaInicioStr);
+      const ahora = new Date();
+      const diffMin = Math.floor((ahora - inicio) / 60000);
+      htmlCrono = `<div style="position:absolute; top:15px; right:15px; font-family:Arial; font-weight:bold; font-size:40px; color:#FFFFFF;">${diffMin} min</div>`;
+    }
+  }
+
+  const div=document.createElement('div');
+  div.className='card';
+  div.innerHTML=`
+    ${htmlCrono}
+    <div style="font-size:24px;color:#C6C3C3;">${idPed}</div>
+    <div style="font-weight:bold;font-size:24px;color:#C6C3C3;">${cliente}</div>
+    <div style="font-size:24px;color:#2768F5;"><a href="tel:${telefono}" style="color:#2768F5;text-decoration:none;">${telefono}</a></div>
+    <div class="txt-base color-blanco negrita" style="margin-top:10px;">${items.split(',').join('<br>')}</div>
+    <div class="pago-caja ${clasePago}">${pago} - ${p[7]}€</div>
+    <div class="comm-group">
+      <div class="btn-comm" onclick="imprimirTicket('${idPed}')">TICKET</div>
+      <div class="btn-comm" onclick="enviarMensaje('WA',${idx})">WHATSAPP</div>
+      <div class="btn-comm" onclick="enviarMensaje('SMS',${idx})">SMS</div>
+      <div class="btn-comm" onclick="window.open('tel:${telefono}')">LLAMAR</div>
+    </div>
+    <div class="btn-group">${botonesEstado}</div>`;
+  cont.appendChild(div);
+ });
+}
+
+function imprimirTicket(id){
+ document.getElementById('printFrame').src = URL_GAS + "?v=imprimir&id=" + encodeURIComponent(id);
+}
+
+async function cambiar(id,est){
+ try {
+  await fetch(URL_GAS, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: JSON.stringify({ accion: 'cambiar_estado', id: id, nuevoEstado: est })
+  });
+  setTimeout(refresh, 500);
+ } catch(e) { console.error(e); }
+}
+
+function abrirModalVaciar() { document.getElementById('modalVaciar').style.display = 'flex'; }
+function cerrarModal(e) { document.getElementById('modalVaciar').style.display = 'none'; }
+
+async function confirmarVaciar() {
+  document.getElementById('modalVaciar').style.display = 'none';
+  try {
+    await fetch(URL_GAS, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify({ accion: 'vaciar_papelera' })
+    });
+    setTimeout(refresh, 500);
+  } catch(e) { console.error(e); }
+}
+
+setInterval(refresh,5000);
+window.onload=refresh;
+</script>
+</body>
+</html>
