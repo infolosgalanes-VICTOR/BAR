@@ -171,61 +171,73 @@ function enviarMensaje(tipo, indexPedido){
  else if (tipo === "SMS") window.open("sms:+" + telfLimpio + "?body=" + texto);
 }
 
-function render(){
- const cont=document.getElementById('main')
- if(!pedidosCache || pedidosCache.length===0)return
- const filtrados=[]
- pedidosCache.forEach((p,i)=>{
-  if(i>0 && String(p[8]||"").toUpperCase().trim()===estadoActual) filtrados.push(i)
- })
- cont.innerHTML=filtrados.length===0 ? '<div style="color:#333;font-size:1.5rem;text-align:center;margin-top:100px;font-weight:bold;">BANDEJA VACÍA</div>' : ""
+function render() {
+  const cont = document.getElementById('main');
+  if (!pedidosCache || pedidosCache.length === 0) return;
 
- filtrados.forEach(idx=>{
-  const p=pedidosCache[idx];
-  const idPed=p[0];
-  const cliente=p[2]||"CLIENTE";
-  const telefono=p[3]||"";
-  const items=p[5]||"";
-  const pago=(p[9]||"").toUpperCase();
-  let clasePago=pago.includes("EFECTIVO")?"pago-verde":pago.includes("TARJETA")?"pago-naranja":pago.includes("BIZUM")?"pago-rojo":"pago-gris";
+  const filtrados = [];
+  // Normalizamos el estado de la pestaña para evitar errores de comparación
+  const estadoObjetivo = estadoActual.trim().toUpperCase();
 
-  let botonesEstado="";
-  if(estadoActual==="ESPERANDO COBRO"){
-   botonesEstado='<button class="btn-g" style="background:#23A80D;" onclick="cambiar(\''+idPed+'\',\'PENDIENTE\')">PAGADO (A COCINA)</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\''+idPed+'\',\'ELIMINADO\')">ELIMINAR</button>';
-  } else if(estadoActual==="PENDIENTE"){
-   botonesEstado='<button class="btn-g" style="background:#2768F5;" onclick="cambiar(\''+idPed+'\',\'COMPLETADO\')">PEDIDO LISTO</button><button class="btn-g" style="background:#DBDBDB;color:#333;" onclick="cambiar(\''+idPed+'\',\'ESPERANDO COBRO\')">NO PAGADO</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\''+idPed+'\',\'ELIMINADO\')">ELIMINAR</button>';
-  } else if(estadoActual==="COMPLETADO"){
-   botonesEstado='<button class="btn-g" style="background:#DBDBDB;color:#333;" onclick="cambiar(\''+idPed+'\',\'ESPERANDO COBRO\')">RECUPERAR</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\''+idPed+'\',\'ELIMINADO\')">ELIMINAR</button>';
-  } else if(estadoActual==="ELIMINADO"){
-   botonesEstado='<button class="btn-g" style="background:#C5C4C4;color:#333;" onclick="cambiar(\''+idPed+'\',\'ESPERANDO COBRO\')">RECUPERAR</button>';
-  }
+  pedidosCache.forEach((p, i) => {
+    if (i > 0) {
+      // Normalizamos el estado que viene de la hoja (Columna I -> p[8])
+      const estadoEnHoja = String(p[8] || "").trim().toUpperCase();
+      if (estadoEnHoja === estadoObjetivo) {
+        filtrados.push(i);
+      }
+    }
+  });
 
-  // --- LÓGICA DE CRONÓMETRO CORREGIDA ---
-  let htmlCrono = "";
-  if (estadoActual === "PENDIENTE") {
-    const fechaISO = p[1]; // Google Sheets suele enviar esto como texto
-    htmlCrono = `<div class="tiempo-crono" data-inicio="${fechaISO}" style="position:absolute; top:15px; right:15px; font-family:Arial; font-weight:bold; font-size:40px; color:#FFFFFF;">0 min</div>`;
-  }
+  cont.innerHTML = filtrados.length === 0 ? 
+    '<div style="color:#333;font-size:1.5rem;text-align:center;margin-top:100px;font-weight:bold;">BANDEJA VACÍA</div>' : "";
 
-  const div=document.createElement('div');
-  div.className='card';
-  div.innerHTML=`
-    ${htmlCrono}
-    <div style="font-size:24px;color:#C6C3C3;">${idPed}</div>
-    <div style="font-weight:bold;font-size:24px;color:#C6C3C3;">${cliente}</div>
-    <div style="font-size:24px;color:#2768F5;"><a href="tel:${telefono}" style="color:#2768F5;text-decoration:none;">${telefono}</a></div>
-    <div class="txt-base color-blanco negrita" style="margin-top:10px;">${items.split(',').join('<br>')}</div>
-    <div class="pago-caja ${clasePago}">${pago} - ${p[7]}€</div>
-    <div class="comm-group">
-      <div class="btn-comm" onclick="imprimirTicket('${idPed}')">TICKET</div>
-      <div class="btn-comm" onclick="enviarMensaje('WA',${idx})">WHATSAPP</div>
-      <div class="btn-comm" onclick="enviarMensaje('SMS',${idx})">SMS</div>
-      <div class="btn-comm" onclick="window.open('tel:${telefono}')">LLAMAR</div>
-    </div>
-    <div class="btn-group">${botonesEstado}</div>`;
-  cont.appendChild(div);
- });
- actualizarTiempos(); // Llamamos inmediatamente para que no espere al primer intervalo
+  filtrados.forEach(idx => {
+    const p = pedidosCache[idx];
+    const idPed = p[0];
+    const cliente = p[2] || "CLIENTE";
+    const telefono = p[3] || "";
+    // Ahora usamos el separador de salto de línea que configuramos en el Code.gs
+    const items = p[5] || "";
+    const pago = (p[9] || "").toUpperCase();
+    let clasePago = pago.includes("EFECTIVO") ? "pago-verde" : pago.includes("TARJETA") ? "pago-naranja" : pago.includes("BIZUM") ? "pago-rojo" : "pago-gris";
+
+    let botonesEstado = "";
+    if (estadoObjetivo === "ESPERANDO COBRO") {
+      botonesEstado = '<button class="btn-g" style="background:#23A80D;" onclick="cambiar(\'' + idPed + '\',\'PENDIENTE\')">PAGADO (A COCINA)</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\'' + idPed + '\',\'ELIMINADO\')">ELIMINAR</button>';
+    } else if (estadoObjetivo === "PENDIENTE") {
+      botonesEstado = '<button class="btn-g" style="background:#2768F5;" onclick="cambiar(\'' + idPed + '\',\'COMPLETADO\')">PEDIDO LISTO</button><button class="btn-g" style="background:#DBDBDB;color:#333;" onclick="cambiar(\'' + idPed + '\',\'ESPERANDO COBRO\')">NO PAGADO</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\'' + idPed + '\',\'ELIMINADO\')">ELIMINAR</button>';
+    } else if (estadoObjetivo === "COMPLETADO") {
+      botonesEstado = '<button class="btn-g" style="background:#DBDBDB;color:#333;" onclick="cambiar(\'' + idPed + '\',\'ESPERANDO COBRO\')">RECUPERAR</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\'' + idPed + '\',\'ELIMINADO\')">ELIMINAR</button>';
+    } else if (estadoObjetivo === "ELIMINADO") {
+      botonesEstado = '<button class="btn-g" style="background:#C5C4C4;color:#333;" onclick="cambiar(\'' + idPed + '\',\'ESPERANDO COBRO\')">RECUPERAR</button>';
+    }
+
+    let htmlCrono = "";
+    if (estadoObjetivo === "PENDIENTE") {
+      const fechaISO = p[1];
+      htmlCrono = `<div class="tiempo-crono" data-inicio="${fechaISO}" style="position:absolute; top:15px; right:15px; font-family:Arial; font-weight:bold; font-size:40px; color:#FFFFFF;">0 min</div>`;
+    }
+
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.innerHTML = `
+      ${htmlCrono}
+      <div style="font-size:24px;color:#C6C3C3;">${idPed}</div>
+      <div style="font-weight:bold;font-size:24px;color:#C6C3C3;">${cliente}</div>
+      <div style="font-size:24px;color:#2768F5;"><a href="tel:${telefono}" style="color:#2768F5;text-decoration:none;">${telefono}</a></div>
+      <div class="txt-base color-blanco negrita" style="margin-top:10px;">${items.split('\n').join('<br>')}</div>
+      <div class="pago-caja ${clasePago}">${pago} - ${p[7]}€</div>
+      <div class="comm-group">
+        <div class="btn-comm" onclick="imprimirTicket('${idPed}')">TICKET</div>
+        <div class="btn-comm" onclick="enviarMensaje('WA',${idx})">WHATSAPP</div>
+        <div class="btn-comm" onclick="enviarMensaje('SMS',${idx})">SMS</div>
+        <div class="btn-comm" onclick="window.open('tel:${telefono}')">LLAMAR</div>
+      </div>
+      <div class="btn-group">${botonesEstado}</div>`;
+    cont.appendChild(div);
+  });
+  actualizarTiempos();
 }
 
 // Función nueva para evitar el NaN
