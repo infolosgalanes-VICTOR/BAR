@@ -64,7 +64,7 @@
 <div id="main" class="main"></div>
 
 <script>
-const URL_GAS = "https://script.google.com/macros/s/AKfycbxSnZMQP9AxOyUpkLJYo1HD10yK1M96o8m5C5KzHGwR6HubEH8mZxydBcOKGkITsYUVPQ/exec";
+const URL_GAS = "https://script.google.com/macros/s/AKfycbSnZMQP9AxOyUpkLJYo1HD10yK1M96o8m5C5KzHGwR6HubEH8mZxydBcOKGkITsYUVPQ/exec";
 
 let estadoActual='ESPERANDO COBRO'
 let pedidosCache=[]
@@ -94,7 +94,10 @@ function setTab(est,id){
 
 async function refresh(){
  try {
-  const res = await fetch(URL_GAS + "?v=monitor_data&t=" + new Date().getTime());
+const res = await fetch(URL_GAS + "?v=monitor_data&t=" + new Date().getTime(), {
+    method: 'GET',
+    redirect: 'follow'
+  });
   const data = await res.json();
   
   if(data && data.pedidos){
@@ -176,12 +179,10 @@ function render() {
   if (!pedidosCache || pedidosCache.length === 0) return;
 
   const filtrados = [];
-  // Normalizamos el estado de la pestaña para evitar errores de comparación
   const estadoObjetivo = estadoActual.trim().toUpperCase();
 
   pedidosCache.forEach((p, i) => {
     if (i > 0) {
-      // Normalizamos el estado que viene de la hoja (Columna I -> p[8])
       const estadoEnHoja = String(p[8] || "").trim().toUpperCase();
       if (estadoEnHoja === estadoObjetivo) {
         filtrados.push(i);
@@ -197,9 +198,25 @@ function render() {
     const idPed = p[0];
     const cliente = p[2] || "CLIENTE";
     const telefono = p[3] || "";
-    // Ahora usamos el separador de salto de línea que configuramos en el Code.gs
     const items = p[5] || "";
     const pago = (p[9] || "").toUpperCase();
+    
+    // Lógica de Modalidad y Dirección
+    const modalidad = (p[4] || "").toUpperCase().trim();
+    const direccion = (p[10] || "").toUpperCase().trim();
+    let estiloModalidad = 'font-size:24px; font-family:Arial; text-transform:uppercase;';
+    let textoModalidad = "MODALIDAD DEL PEDIDO: " + modalidad;
+
+    if (modalidad === "PARA TOMAR") {
+      estiloModalidad += ' color:#C6C3C3;'; // Gris
+    } else {
+      // PARA LLEVAR o ENVIO
+      estiloModalidad += ' color:#FFEE03; font-weight:bold;'; // Amarillo Negrita
+      if (modalidad === "ENVIO" || modalidad === "ENVÍO") {
+        textoModalidad += " - " + direccion;
+      }
+    }
+
     let clasePago = pago.includes("EFECTIVO") ? "pago-verde" : pago.includes("TARJETA") ? "pago-naranja" : pago.includes("BIZUM") ? "pago-rojo" : "pago-gris";
 
     let botonesEstado = "";
@@ -225,6 +242,7 @@ function render() {
       ${htmlCrono}
       <div style="font-size:24px;color:#C6C3C3;">${idPed}</div>
       <div style="font-weight:bold;font-size:24px;color:#C6C3C3;">${cliente}</div>
+      <div style="${estiloModalidad}">${textoModalidad}</div>
       <div style="font-size:24px;color:#2768F5;"><a href="tel:${telefono}" style="color:#2768F5;text-decoration:none;">${telefono}</a></div>
       <div class="txt-base color-blanco negrita" style="margin-top:10px;">${items.split('\n').join('<br>')}</div>
       <div class="pago-caja ${clasePago}">${pago} - ${p[7]}€</div>
@@ -240,31 +258,22 @@ function render() {
   actualizarTiempos();
 }
 
-// Función nueva para evitar el NaN
 function actualizarTiempos() {
   const ahora = new Date();
   document.querySelectorAll(".tiempo-crono").forEach(el => {
     let inicioStr = el.getAttribute("data-inicio");
     if(!inicioStr) return;
-    
-    // Convertimos la fecha de Google Sheets a algo que JS entienda
-    // Si viene como "22/03/2026 12:00:00", lo procesamos
     let fechaInicio = new Date(inicioStr);
-    
-    // Si falla el constructor directo, intentamos limpiar el formato común de Sheets
     if (isNaN(fechaInicio.getTime())) {
-       // Intenta cambiar DD/MM/YYYY por MM/DD/YYYY que es el estándar de JS
        let partes = inicioStr.split(/[\/\s:]/);
        if(partes.length >= 3) {
-         fechaInicio = new Date(partes[1] + "/" + partes[0] + "/" + partes[2] + " " + (partes[3]||"00") + ":" + (partes[4]||"00"));
+          fechaInicio = new Date(partes[1] + "/" + partes[0] + "/" + partes[2] + " " + (partes[3]||"00") + ":" + (partes[4]||"00"));
        }
     }
-
     if (!isNaN(fechaInicio.getTime())) {
       const diffMs = ahora - fechaInicio;
       const min = Math.floor(diffMs / 60000);
       el.textContent = min + " min";
-      // Opcional: Si pasan 20 min, lo ponemos en rojo
       if (min >= 20) el.style.color = "#FF0000";
       else el.style.color = "#FFFFFF";
     } else {
@@ -303,8 +312,8 @@ async function confirmarVaciar() {
   } catch(e) { console.error(e); }
 }
 
-setInterval(refresh, 10000); // Refresca datos cada 10 seg
-setInterval(actualizarTiempos, 30000); // Actualiza minutos visuales cada 30 seg
+setInterval(refresh, 10000); 
+setInterval(actualizarTiempos, 30000); 
 window.onload=refresh;
 </script>
 </body>
