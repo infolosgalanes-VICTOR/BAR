@@ -66,63 +66,54 @@
 <script>
 const URL_GAS = "https://script.google.com/macros/s/AKfycbxSnZMQP9AxOyUpkLJYo1HD10yK1M96o8m5C5KzHGwR6HubEH8mZxydBcOKGkITsYUVPQ/exec";
 
-let estadoActual='ESPERANDO COBRO'
-let pedidosCache=[]
-let configGlobal={}
-let inicializado=false
-let audioPermitido=false
+let estadoActual='ESPERANDO COBRO';
+let pedidosCache=[];
+let configGlobal={};
+let inicializado=false;
+let audioPermitido=false;
 
 function activarAudio(){
  if(!audioPermitido){
-  audioPermitido=true
-  const a=document.getElementById('audioAviso')
-  if(a)a.play().then(()=>{a.pause();a.currentTime=0}).catch(e=>{})
+  audioPermitido=true;
+  const a=document.getElementById('audioAviso');
+  if(a)a.play().then(()=>{a.pause();a.currentTime=0}).catch(e=>{});
  }
 }
 
 function toggleFullScreen(){
- if(!document.fullscreenElement) document.documentElement.requestFullscreen()
- else document.exitFullscreen()
+ if(!document.fullscreenElement) document.documentElement.requestFullscreen();
+ else document.exitFullscreen();
 }
 
 function setTab(est,id){
- estadoActual=est
- document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'))
- document.getElementById(id).classList.add('active')
- render()
+ estadoActual=est;
+ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+ document.getElementById(id).classList.add('active');
+ render();
 }
 
 async function refresh() {
   try {
-    console.log("Intentando conectar con Google...");
     const respuesta = await fetch(URL_GAS + "?v=monitor_data&t=" + new Date().getTime());
-    
-    if (!respuesta.ok) {
-      console.error("Error de red:", respuesta.statusText);
-      return;
-    }
+    if (!respuesta.ok) return;
 
     const data = await respuesta.json();
-    console.log("Datos recibidos:", data);
 
     if (data && data.pedidos) {
-      // 1. Guardamos los pedidos en el sistema
       if (inicializado && data.pedidos.length > pedidosCache.length) {
         reproducirAviso();
       }
       pedidosCache = data.pedidos;
 
-      // 2. Actualizamos la configuración (Mayúsculas/Minúsculas según Excel)
       configGlobal = {
         nombreBar: data.nombreBar || "Bar Los Galanes",
         bizumTlf: data.bizum || "",
         enlacePago: data.pagoSeguro || ""
       };
 
-      // 3. Conteo de pedidos por pestañas
       let c1=0, c2=0, c3=0, c4=0;
       pedidosCache.forEach((p, i) => {
-        if (i === 0) return; // Saltamos el encabezado
+        if (i === 0) return;
         let est = String(p[8] || "").toUpperCase().trim();
         if (est === 'ESPERANDO COBRO') c1++;
         if (est === 'PENDIENTE') c2++;
@@ -130,63 +121,27 @@ async function refresh() {
         if (est === 'ELIMINADO') c4++;
       });
 
-      // 4. Actualizamos los textos de la interfaz
       document.getElementById('count-t1').innerText = c1 > 0 ? c1 : "";
       document.getElementById('count-t2').innerText = c2 > 0 ? c2 : "";
       document.getElementById('count-t3').innerText = c3 > 0 ? c3 : "";
       document.getElementById('count-t4').innerText = c4 > 0 ? c4 : "";
 
       document.getElementById('ui-nombre-bar').innerText = configGlobal.nombreBar;
-      document.getElementById('total-count').innerText = "PEDIDOS: " + (pedidosCache.length - 1);
+      document.getElementById('total-count').innerText = "PEDIDOS: " + (pedidosCache.length > 0 ? pedidosCache.length-1 : 0);
 
-      // 5. Dibujamos los pedidos en pantalla
       inicializado = true;
-      render(); 
-    } else {
-      console.warn("La respuesta no contiene pedidos válidos.");
+      render();
     }
   } catch (error) {
-    console.error("Error crítico en el monitor:", error);
+    console.error("Error en refresh:", error);
     document.getElementById('total-count').innerText = "Error de conexión";
   }
 }
-  
-  if(data && data.pedidos){
-   if(inicializado && data.pedidos.length > pedidosCache.length) reproducirAviso();
-   pedidosCache = data.pedidos;
-   configGlobal = {
-    nombreBar: data.nombreBar || "Bar Los Galanes",
-    bizumTlf: data.bizum || "",
-    enlacePago: data.pagoSeguro || ""
-   };
-
-   let c1=0, c2=0, c3=0, c4=0;
-   pedidosCache.forEach((p, i) => {
-     if (i === 0) return;
-     let est = String(p[8] || "").toUpperCase().trim();
-     if (est === 'ESPERANDO COBRO') c1++;
-     if (est === 'PENDIENTE') c2++;
-     if (est === 'COMPLETADO') c3++;
-     if (est === 'ELIMINADO') c4++;
-   });
-
-   document.getElementById('count-t1').innerText = c1 > 0 ? c1 : "";
-   document.getElementById('count-t2').innerText = c2 > 0 ? c2 : "";
-   document.getElementById('count-t3').innerText = c3 > 0 ? c3 : "";
-   document.getElementById('count-t4').innerText = c4 > 0 ? c4 : "";
-
-   inicializado=true;
-   document.getElementById('ui-nombre-bar').innerText = configGlobal.nombreBar;
-   document.getElementById('total-count').innerText = "PEDIDOS: " + (pedidosCache.length > 0 ? pedidosCache.length-1 : 0);
-   render();
-  }
- } catch(e) { console.error("Error cargando monitor", e); }
-}
 
 function reproducirAviso(){
- if(!audioPermitido)return
- const a=document.getElementById('audioAviso')
- if(a){a.currentTime=0;a.play().catch(e=>{})}
+ if(!audioPermitido)return;
+ const a=document.getElementById('audioAviso');
+ if(a){a.currentTime=0;a.play().catch(e=>{})};
 }
 
 function enviarMensaje(tipo, indexPedido){
@@ -252,17 +207,15 @@ function render() {
     const items = p[5] || "";
     const pago = (p[9] || "").toUpperCase();
     
-    // Lógica de Modalidad y Dirección
     const modalidad = (p[4] || "").toUpperCase().trim();
     const direccion = (p[10] || "").toUpperCase().trim();
     let estiloModalidad = 'font-size:24px; font-family:Arial; text-transform:uppercase;';
     let textoModalidad = "MODALIDAD DEL PEDIDO: " + modalidad;
 
     if (modalidad === "PARA TOMAR") {
-      estiloModalidad += ' color:#C6C3C3;'; // Gris
+      estiloModalidad += ' color:#C6C3C3;'; 
     } else {
-      // PARA LLEVAR o ENVIO
-      estiloModalidad += ' color:#FFEE03; font-weight:bold;'; // Amarillo Negrita
+      estiloModalidad += ' color:#FFEE03; font-weight:bold;'; 
       if (modalidad === "ENVIO" || modalidad === "ENVÍO") {
         textoModalidad += " - " + direccion;
       }
