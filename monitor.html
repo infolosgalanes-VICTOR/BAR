@@ -64,7 +64,6 @@
 <div id="main" class="main"></div>
 
 <script>
-// URL DE TU PROYECTO DE GOOGLE (MISMA QUE CARTA Y GESTIÓN)
 const URL_GAS = "https://script.google.com/macros/s/AKfycbxSnZMQP9AxOyUpkLJYo1HD10yK1M96o8m5C5KzHGwR6HubEH8mZxydBcOKGkITsYUVPQ/exec";
 
 let estadoActual='ESPERANDO COBRO'
@@ -95,7 +94,7 @@ function setTab(est,id){
 
 async function refresh(){
  try {
-  const res = await fetch(URL_GAS + "?v=monitor_data");
+  const res = await fetch(URL_GAS + "?v=monitor_data&t=" + new Date().getTime());
   const data = await res.json();
   
   if(data && data.pedidos){
@@ -107,7 +106,6 @@ async function refresh(){
     enlacePago: data.pagoSeguro || ""
    };
 
-   // Contadores
    let c1=0, c2=0, c3=0, c4=0;
    pedidosCache.forEach((p, i) => {
      if (i === 0) return;
@@ -202,15 +200,11 @@ function render(){
    botonesEstado='<button class="btn-g" style="background:#C5C4C4;color:#333;" onclick="cambiar(\''+idPed+'\',\'ESPERANDO COBRO\')">RECUPERAR</button>';
   }
 
+  // --- LÓGICA DE CRONÓMETRO CORREGIDA ---
   let htmlCrono = "";
   if (estadoActual === "PENDIENTE") {
-    const horaInicioStr = p[1]; // Usamos la columna de fecha/hora
-    if (horaInicioStr) {
-      const inicio = new Date(horaInicioStr);
-      const ahora = new Date();
-      const diffMin = Math.floor((ahora - inicio) / 60000);
-      htmlCrono = `<div style="position:absolute; top:15px; right:15px; font-family:Arial; font-weight:bold; font-size:40px; color:#FFFFFF;">${diffMin} min</div>`;
-    }
+    const fechaISO = p[1]; // Google Sheets suele enviar esto como texto
+    htmlCrono = `<div class="tiempo-crono" data-inicio="${fechaISO}" style="position:absolute; top:15px; right:15px; font-family:Arial; font-weight:bold; font-size:40px; color:#FFFFFF;">0 min</div>`;
   }
 
   const div=document.createElement('div');
@@ -231,6 +225,40 @@ function render(){
     <div class="btn-group">${botonesEstado}</div>`;
   cont.appendChild(div);
  });
+ actualizarTiempos(); // Llamamos inmediatamente para que no espere al primer intervalo
+}
+
+// Función nueva para evitar el NaN
+function actualizarTiempos() {
+  const ahora = new Date();
+  document.querySelectorAll(".tiempo-crono").forEach(el => {
+    let inicioStr = el.getAttribute("data-inicio");
+    if(!inicioStr) return;
+    
+    // Convertimos la fecha de Google Sheets a algo que JS entienda
+    // Si viene como "22/03/2026 12:00:00", lo procesamos
+    let fechaInicio = new Date(inicioStr);
+    
+    // Si falla el constructor directo, intentamos limpiar el formato común de Sheets
+    if (isNaN(fechaInicio.getTime())) {
+       // Intenta cambiar DD/MM/YYYY por MM/DD/YYYY que es el estándar de JS
+       let partes = inicioStr.split(/[\/\s:]/);
+       if(partes.length >= 3) {
+         fechaInicio = new Date(partes[1] + "/" + partes[0] + "/" + partes[2] + " " + (partes[3]||"00") + ":" + (partes[4]||"00"));
+       }
+    }
+
+    if (!isNaN(fechaInicio.getTime())) {
+      const diffMs = ahora - fechaInicio;
+      const min = Math.floor(diffMs / 60000);
+      el.textContent = min + " min";
+      // Opcional: Si pasan 20 min, lo ponemos en rojo
+      if (min >= 20) el.style.color = "#FF0000";
+      else el.style.color = "#FFFFFF";
+    } else {
+      el.textContent = "-- min";
+    }
+  });
 }
 
 function imprimirTicket(id){
@@ -263,7 +291,8 @@ async function confirmarVaciar() {
   } catch(e) { console.error(e); }
 }
 
-setInterval(refresh,5000);
+setInterval(refresh, 10000); // Refresca datos cada 10 seg
+setInterval(actualizarTiempos, 30000); // Actualiza minutos visuales cada 30 seg
 window.onload=refresh;
 </script>
 </body>
