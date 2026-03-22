@@ -145,20 +145,28 @@ let pedido = {};
 let seccionActual = null;
 let lastRes = null;
 
+// 1. URL GLOBAL AL PRINCIPIO DEL SCRIPT
+const URL_GAS = "https://script.google.com/macros/s/AKfycbxSnZMQP9AxOyUpkLJYo1HD10yK1M96o8m5C5KzHGwR6HubEH8mZxydBcOKGkITsYUVPQ/exec";
+
+let datosWeb = null;
+let lang = 'SP'; 
+let pedido = {};
+let seccionActual = null;
+let lastRes = null;
+
+// 2. EVENTO DE CARGA ÚNICO
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    // Usamos una URL limpia para evitar bloqueos de caché
-    const urlConCache = URL_GAS + "?v=get_datos_web&t=" + new Date().getTime();
+    const urlLlamada = `${URL_GAS}?v=get_datos_web&t=${new Date().getTime()}`;
     
-    const res = await fetch(urlConCache);
-    
+    const res = await fetch(urlLlamada);
     if (!res.ok) throw new Error("Error en la respuesta del servidor");
     
     const data = await res.json();
-    console.log("Datos recibidos:", data); // Para que veas en la consola si llegan
+    console.log("Datos recibidos:", data);
     init(data);
   } catch (e) { 
-    console.error("Error cargando datos desde GitHub:", e);
+    console.error("Error cargando datos:", e);
     alert("Error de conexión con el servidor de datos.");
   }
 });
@@ -263,16 +271,20 @@ function renderSecciones() {
   });
 }
 
-function abrirSeccion(sec) {
+async function abrirSeccion(sec) {
   let n = sec.NOMBRE_DEFAULT;
   seccionActual = { nombre: n, claveTrad: normalizarClave(n), fraseClave: sec.FRASE_SECCION, config: sec };
+  
+  // 1. Cambios visuales de la interfaz
   document.getElementById("pantalla-abierto").style.display = "none";
   document.getElementById("vista-pedido").style.display = "block";
   document.getElementById("titulo-display").textContent = getTrad(seccionActual.claveTrad);
+  
   const tf = getTrad(sec.FRASE_SECCION);
   document.getElementById("frase-sec-txt").textContent = tf || "";
   document.getElementById("frase-sec-txt").style.display = tf ? "inline-block" : "none";
 
+  // 2. Configuración de modalidades (Para tomar, llevar, envío)
   const opciones = [
     { id: "opt-tomar", operativa: sec.PARA_TOMAR === "SI" },
     { id: "opt-llevar", operativa: sec.PARA_LLEVAR === "SI" },
@@ -284,12 +296,35 @@ function abrirSeccion(sec) {
     const el = document.getElementById(opt.id);
     const radio = el.querySelector('input');
     radio.checked = false;
-    if (opt.operativa) { el.classList.remove("opcion-deshabilitada"); radio.disabled = false; opcionesActivas.push(radio); }
-    else { el.classList.add("opcion-deshabilitada"); radio.disabled = true; }
+    if (opt.operativa) { 
+      el.classList.remove("opcion-deshabilitada"); 
+      radio.disabled = false; 
+      opcionesActivas.push(radio); 
+    } else { 
+      el.classList.add("opcion-deshabilitada"); 
+      radio.disabled = true; 
+    }
   });
-  if (opcionesActivas.length === 1) { opcionesActivas[0].checked = true; toggleDireccion(); }
 
-  google.script.run.withSuccessHandler(res => { lastRes = res; renderProductos(res); }).getDatosSeccion(n);
+  if (opcionesActivas.length === 1) { 
+    opcionesActivas[0].checked = true; 
+    toggleDireccion(); 
+  }
+
+  // 3. LLAMADA A GOOGLE DESDE GITHUB (Sustituye al SuccessHandler)
+  try {
+    const urlProductos = `${URL_GAS}?v=get_datos_seccion&seccion=${encodeURIComponent(n)}&t=${new Date().getTime()}`;
+    const response = await fetch(urlProductos);
+    
+    if (!response.ok) throw new Error("Error cargando productos");
+    
+    const res = await response.json();
+    lastRes = res; 
+    renderProductos(res);
+  } catch (error) {
+    console.error("Error obteniendo productos de la sección:", error);
+    alert("No se pudieron cargar los productos de esta sección.");
+  }
 }
 
 function renderProductos(res) {
@@ -574,8 +609,9 @@ function validarYRevisar() {
   abrirModal('REVISION');
 }
 
-function confirmarEnvio() {
+async function confirmarEnvio() {
   abrirModal('ENVIANDO');
+  
   const nombre = document.getElementById("nombre-cliente").value.trim().toUpperCase();
   const prefRadio = document.querySelector('input[name="pref"]:checked').value;
   let telLimpio = document.getElementById("tel-cliente").value.trim().replace(/[^0-9]/g, "");
@@ -589,38 +625,54 @@ function confirmarEnvio() {
   let subtotal = 0;
 
   for (let key in pedido) {
-    // --- CAMBIO AQUÍ: Forzamos el índice 1 (ESPAÑOL) para la cocina ---
+    // Forzamos el índice 1 (ESPAÑOL) para que en la cocina siempre se lea igual
     let nProd = getTrad(pedido[key].nombre, 1).toUpperCase();
-    
-    // Traducimos la salsa usando salsa_id (clave del diccionario) forzada a ESPAÑOL
     let nSalsa = (pedido[key].salsa_id && pedido[key].salsa_id !== "SIN_SALSA") 
                  ? " (" + getTrad(pedido[key].salsa_id, 1).toUpperCase() + ")" 
                  : "";
                  
     let nombreFull = pedido[key].cant + "X " + nProd + nSalsa;
-    
     productosArr.push(nombreFull);
     subtotal += (pedido[key].cant * pedido[key].precio);
   }
 
   if (modInput === "ENVIO") subtotal += parseFloat(datosWeb.config.RIDER_PRECIO || 0);
   
+  // PREPARAMOS EL PAQUETE DE DATOS
   const payload = { 
+    accion: 'guardar_pedido',
     nombre: nombre, 
     telefono: telefonoFinal, 
     modalidad: modInput, 
-    resumenProductos: productosArr.join(", "), // Estos ya van en ESPAÑOL
-    observaciones: obs, 
-    total: subtotal, 
-    metodoPago: pago, 
-    direccion: modInput === "ENVIO" ? direccion : "", 
-    pedidoOriginal: pedido 
+    metodoPago: pago,
+    direccion: direccion,
+    observaciones: obs,
+    total: subtotal,
+    resumenProductos: productosArr.join("\n"),
+    pedidoOriginal: pedido // Guardamos el objeto original por si necesitas auditoría
   };
 
-  google.script.run.withSuccessHandler(res => { 
-    if(res.success) abrirModal('ENVIADO'); 
-    else { alert("Error: " + res.error); cerrarModal(); } 
-  }).guardarPedido(payload);
+  try {
+    // ENVIAR A GOOGLE APPS SCRIPT
+    await fetch(URL_GAS, {
+      method: 'POST',
+      mode: 'no-cors', // Modo necesario para enviar datos desde GitHub a Google
+      headers: { 'Content-Type': 'text/plain' }, // Evita problemas de pre-flight CORS
+      body: JSON.stringify(payload)
+    });
+
+    // Como no-cors no permite leer la respuesta, si no hay error de red, damos el OK
+    setTimeout(() => {
+      pedido = {}; // Vaciamos el carrito
+      calcularTotal();
+      abrirModal('ENVIADO');
+    }, 500);
+
+  } catch (error) {
+    console.error("Error crítico enviando el pedido:", error);
+    alert("Hubo un error de conexión. Inténtalo de nuevo.");
+    abrirModal('REVISION'); // Devolvemos al usuario a la revisión
+  }
 }
 </script>
 </body>
