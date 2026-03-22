@@ -287,7 +287,9 @@ function actualizarTiempos() {
 }
 
 function imprimirTicket(id){
- document.getElementById('printFrame').src = URL_GAS + "?v=imprimir&id=" + encodeURIComponent(id);
+  const idLimpio = id.replace(/'/g, "");
+  // Esto carga la URL en el iframe oculto 'printFrame'
+  document.getElementById('printFrame').src = URL_GAS + "?v=imprimir&id=" + encodeURIComponent(idLimpio);
 }
 
 async function cambiar(id,est){
