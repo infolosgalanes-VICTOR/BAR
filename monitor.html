@@ -210,7 +210,7 @@ function render() {
     const modalidad = (p[4] || "").toUpperCase().trim();
     const direccion = (p[10] || "").toUpperCase().trim();
     let estiloModalidad = 'font-size:24px; font-family:Arial; text-transform:uppercase;';
-    let textoModalidad = "MODALIDAD DEL PEDIDO: " + modalidad;
+    let textoModalidad = modalidad;
 
     if (modalidad === "PARA TOMAR") {
       estiloModalidad += ' color:#C6C3C3;'; 
