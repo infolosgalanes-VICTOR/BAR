@@ -139,13 +139,7 @@ footer { width: 100%; text-align: center; padding: 20px 0; }
 <footer><div id="copyright" class="copyright"></div></footer>
 
 <script>
-let datosWeb = null;
-let lang = 'SP'; 
-let pedido = {};
-let seccionActual = null;
-let lastRes = null;
-
-// 1. URL GLOBAL AL PRINCIPIO DEL SCRIPT
+// 1. CONFIGURACIÓN Y VARIABLES GLOBALES
 const URL_GAS = "https://script.google.com/macros/s/AKfycbxSnZMQP9AxOyUpkLJYo1HD10yK1M96o8m5C5KzHGwR6HubEH8mZxydBcOKGkITsYUVPQ/exec";
 
 let datosWeb = null;
@@ -158,12 +152,9 @@ let lastRes = null;
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     const urlLlamada = `${URL_GAS}?v=get_datos_web&t=${new Date().getTime()}`;
-    
     const res = await fetch(urlLlamada);
     if (!res.ok) throw new Error("Error en la respuesta del servidor");
-    
     const data = await res.json();
-    console.log("Datos recibidos:", data);
     init(data);
   } catch (e) { 
     console.error("Error cargando datos:", e);
@@ -172,22 +163,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function init(datos){
-  if(!datos||datos.error) return;
+  if(!datos || datos.error) return;
   datosWeb = datos;
   const logoEl = document.getElementById("logo");
   logoEl.textContent = datosWeb.config.NOMBRE || "LOS GALANES";
   logoEl.style.visibility = "visible";
   crearIdiomas();
   
-  // CORRECCIÓN: Usar IDIOMA_POR_DEFECTO de tu tabla CONFIG
   let idio = (datosWeb.config && datosWeb.config.IDIOMA_POR_DEFECTO) ? datosWeb.config.IDIOMA_POR_DEFECTO : "SP";
   if (idio === "ES") idio = "SP";
   cambiarIdioma(idio); 
   
-  // DETERMINACIÓN DE ESTADO SEGÚN CONFIG!B3
   const estado = (datosWeb.config.ESTADO_BAR || "").toString().toUpperCase().trim();
   if (estado !== "ABIERTO") {
-    // MENSAJE SEGÚN CONFIG!B4
     const mensajeEstado = getTrad(datosWeb.config.SI_CERRADO);
     document.getElementById("msg-cerrado").textContent = mensajeEstado;
     document.getElementById("msg-cerrado").style.display = "block";
@@ -225,13 +213,8 @@ function cambiarIdioma(nuevo) {
   document.getElementById("tel-cliente").placeholder = getTrad("TXT_TELEFONO");
   document.getElementById("dir-cliente").placeholder = getTrad("TXT_DIRECCION");
   
-  // COSTE ENVÍO SEGÚN CONFIG!B8
   document.getElementById("txt_rider").textContent = "+" + formatearPrecio(datosWeb.config.RIDER_PRECIO || 0) + " €";
   document.getElementById("copyright").textContent = (datosWeb.config.NOMBRE || "LOS GALANES") + " © " + getTrad("MSG_COPYRIGHT");
-
-  if (datosWeb && datosWeb.config && datosWeb.config.SI_CERRADO) {
-    document.getElementById("msg-cerrado").textContent = getTrad(datosWeb.config.SI_CERRADO);
-  }
 
   renderSecciones();
   if(seccionActual) abrirSeccion(seccionActual.config);
@@ -239,17 +222,9 @@ function cambiarIdioma(nuevo) {
 
 function getTrad(c, columnaForzada) {
   if (!datosWeb || !datosWeb.diccionario || !c) return c;
-  
   const entrada = datosWeb.diccionario[c.toString().toUpperCase().trim()];
   if (entrada) { 
-    // Si pasamos columnaForzada (1), usamos 'ES'. Si no, usamos el idioma actual (lang).
-    let cod;
-    if (columnaForzada === 1) {
-      cod = 'ES';
-    } else {
-      cod = (lang === 'SP') ? 'ES' : lang;
-    }
-    
+    let cod = (columnaForzada === 1 || lang === 'SP') ? 'ES' : lang;
     return entrada[cod] || entrada['ES'] || c; 
   }
   return c;
@@ -274,8 +249,6 @@ function renderSecciones() {
 async function abrirSeccion(sec) {
   let n = sec.NOMBRE_DEFAULT;
   seccionActual = { nombre: n, claveTrad: normalizarClave(n), fraseClave: sec.FRASE_SECCION, config: sec };
-  
-  // 1. Cambios visuales de la interfaz
   document.getElementById("pantalla-abierto").style.display = "none";
   document.getElementById("vista-pedido").style.display = "block";
   document.getElementById("titulo-display").textContent = getTrad(seccionActual.claveTrad);
@@ -284,7 +257,6 @@ async function abrirSeccion(sec) {
   document.getElementById("frase-sec-txt").textContent = tf || "";
   document.getElementById("frase-sec-txt").style.display = tf ? "inline-block" : "none";
 
-  // 2. Configuración de modalidades (Para tomar, llevar, envío)
   const opciones = [
     { id: "opt-tomar", operativa: sec.PARA_TOMAR === "SI" },
     { id: "opt-llevar", operativa: sec.PARA_LLEVAR === "SI" },
@@ -297,33 +269,22 @@ async function abrirSeccion(sec) {
     const radio = el.querySelector('input');
     radio.checked = false;
     if (opt.operativa) { 
-      el.classList.remove("opcion-deshabilitada"); 
-      radio.disabled = false; 
-      opcionesActivas.push(radio); 
+      el.classList.remove("opcion-deshabilitada"); radio.disabled = false; opcionesActivas.push(radio); 
     } else { 
-      el.classList.add("opcion-deshabilitada"); 
-      radio.disabled = true; 
+      el.classList.add("opcion-deshabilitada"); radio.disabled = true; 
     }
   });
 
-  if (opcionesActivas.length === 1) { 
-    opcionesActivas[0].checked = true; 
-    toggleDireccion(); 
-  }
+  if (opcionesActivas.length === 1) { opcionesActivas[0].checked = true; toggleDireccion(); }
 
-  // 3. LLAMADA A GOOGLE DESDE GITHUB (Sustituye al SuccessHandler)
   try {
     const urlProductos = `${URL_GAS}?v=get_datos_seccion&seccion=${encodeURIComponent(n)}&t=${new Date().getTime()}`;
     const response = await fetch(urlProductos);
-    
-    if (!response.ok) throw new Error("Error cargando productos");
-    
     const res = await response.json();
     lastRes = res; 
     renderProductos(res);
   } catch (error) {
-    console.error("Error obteniendo productos de la sección:", error);
-    alert("No se pudieron cargar los productos de esta sección.");
+    console.error("Error productos:", error);
   }
 }
 
@@ -337,13 +298,9 @@ function renderProductos(res) {
     let html = "";
     (res.productosPorCategoria[cat] || []).forEach(p => {
       if (p.soloLocal && mod !== "LOCAL") return;
-      
       let cantTotal = 0;
       const pID = String(p.id).trim();
-      for(let key in pedido) { 
-        if(String(pedido[key].id).trim() === pID) cantTotal += pedido[key].cant; 
-      }
-
+      for(let key in pedido) { if(String(pedido[key].id).trim() === pID) cantTotal += pedido[key].cant; }
       const pJson = JSON.stringify(p).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
 
       html += `
@@ -367,13 +324,10 @@ function renderProductos(res) {
 }
 
 function updateCant(id, delta) {
-  // Buscamos en la lista que ahora sí enviamos desde el servidor
   const p = datosWeb.productos.find(item => String(item.id) === String(id));
   if (!p) return;
-
   if (delta > 0) {
     const sRaw = String(p.salsas || "").trim();
-    // Si hay algo escrito en la columna I, abrimos salsas
     if (sRaw !== "" && sRaw !== "0" && sRaw !== "undefined") {
       abrirSelectorSalsas(p);
     } else {
@@ -393,57 +347,29 @@ function abrirSelectorSalsas(p) {
   const modal = document.getElementById("modal-container");
   const box = document.getElementById("modal-content");
   modal.style.display = "flex";
-  
-  // Título traducido de la nota de salsas (Columna J) o genérico
   let titulo = p.nota_salsas ? getTrad(p.nota_salsas) : getTrad("SELECCIONA_SALSA");
-  
-  let html = `<span class="modal-close-x" onclick="cerrarModal()">&times;</span>`;
-  html += `<div class="modal-head-lobster">${titulo}</div>`;
-  html += `<div class="contenedor-botones-salsas">`;
-
-  // Las salsas vienen como texto "SALSA1, SALSA2" en p.salsas
+  let html = `<span class="modal-close-x" onclick="cerrarModal()">&times;</span><div class="modal-head-lobster">${titulo}</div><div class="contenedor-botones-salsas">`;
   const listaSalsas = p.salsas.split(",").map(s => s.trim());
-
   listaSalsas.forEach(claveSalsa => {
-    if (claveSalsa) {
-      html += `<button class="btn-salsa-vertical" onclick="confirmarSalsa('${p.id}', '${claveSalsa}')">
-                ${getTrad(claveSalsa).toUpperCase()}
-               </button>`;
-    }
+    if (claveSalsa) html += `<button class="btn-salsa-vertical" onclick="confirmarSalsa('${p.id}', '${claveSalsa}')">${getTrad(claveSalsa).toUpperCase()}</button>`;
   });
-
   html += `</div>`;
   box.innerHTML = html;
 }
 
-function confirmarSalsa(id, claveSalsa) {
-  gestionarCarrito(id, 1, claveSalsa);
-  cerrarModal();
-}
+function confirmarSalsa(id, claveSalsa) { gestionarCarrito(id, 1, claveSalsa); cerrarModal(); }
 
 function gestionarCarrito(id, delta, claveSalsa) {
   const p = datosWeb.productos.find(item => String(item.id).trim() === String(id).trim());
   if(!p) return;
-  
   const sID = (!claveSalsa || claveSalsa === "SIN_SALSA") ? "SIN_SALSA" : claveSalsa;
   const cartKey = (sID === "SIN_SALSA") ? String(id).trim() : String(id).trim() + "_" + sID;
-
   if (!pedido[cartKey]) {
-    if (delta > 0) {
-      pedido[cartKey] = {
-        id: String(id).trim(),
-        nombre: p.nombre,
-        salsa_id: sID,
-        salsa_nombre: (sID !== "SIN_SALSA") ? getTrad(sID) : "",
-        precio: parseFloat(p.precio) || 0,
-        cant: 1
-      };
-    }
+    if (delta > 0) pedido[cartKey] = { id: String(id).trim(), nombre: p.nombre, salsa_id: sID, precio: parseFloat(p.precio) || 0, cant: 1 };
   } else {
     pedido[cartKey].cant += delta;
     if (pedido[cartKey].cant <= 0) delete pedido[cartKey];
   }
-  
   calcularTotal();
   if(lastRes) renderProductos(lastRes);
 }
@@ -460,7 +386,6 @@ function verDetalleProducto(p) {
 }
 
 function cerrarModal() { document.getElementById("modal-container").style.display = "none"; }
-window.onclick = function(event) { if (event.target == document.getElementById("modal-container")) cerrarModal(); }
 
 function calcularTotal() {
   let t = 0; for (let k in pedido) t += pedido[k].cant * pedido[k].precio;
@@ -469,29 +394,11 @@ function calcularTotal() {
 
 function toggleDireccion() {
   const m = document.querySelector('input[name="modalidad"]:checked')?.value;
-  const inputDir = document.getElementById("dir-cliente");
-  const optEfectivo = document.getElementById("opt-pago-efectivo");
-  const radioEfectivo = optEfectivo.querySelector('input[name="pago"]');
-  inputDir.style.display = (m === "ENVIO") ? "block" : "none";
-  if (m === "ENVIO") {
-    radioEfectivo.checked = false;
-    optEfectivo.style.opacity = "0.3"; optEfectivo.style.pointerEvents = "none"; radioEfectivo.disabled = true;
-  } else {
-    optEfectivo.style.opacity = "1"; optEfectivo.style.pointerEvents = "auto"; radioEfectivo.disabled = false;
-  }
+  document.getElementById("dir-cliente").style.display = (m === "ENVIO") ? "block" : "none";
   if(lastRes) renderProductos(lastRes);
 }
 
-function irAInicio() {
-  // Mostramos un mensaje visual de "Cargando" mientras se refresca
-  const box = document.getElementById("modal-content");
-  if(box) box.innerHTML = `<div class="modal-dato-arial-20" style="text-align:center;">Cargando...</div>`;
-  
-  // Pedimos la URL al servidor y redirigimos la ventana principal
-  google.script.run.withSuccessHandler(function(url) {
-    window.top.location.href = url;
-  }).getScriptURL();
-}
+function irAInicio() { location.reload(); }
 
 function abrirModal(tipo) {
   const modal = document.getElementById("modal-container");
@@ -499,7 +406,6 @@ function abrirModal(tipo) {
   modal.style.display = "flex";
   box.innerHTML = "";
 
-  // --- ESCENARIO 1: REVISIÓN DE LA COMANDA ---
   if(tipo === 'REVISION') {
     const nombre = document.getElementById("nombre-cliente").value.toUpperCase();
     const pref = document.querySelector('input[name="pref"]:checked').value;
@@ -509,71 +415,34 @@ function abrirModal(tipo) {
     const pago = document.querySelector('input[name="pago"]:checked').value;
     const obsVal = document.getElementById("obs").value.trim().toUpperCase();
 
-    let html = `<span class="modal-close-x" onclick="cerrarModal()">&times;</span>`;
-    html += `<div class="modal-head-lobster">${datosWeb.config.NOMBRE || "LOS GALANES"}</div>`;
-    html += `<div class="modal-dato-arial-20 dato-negrita">${nombre}</div>`;
-    
-    const telDisplay = (pref === "+34" && !telLimpio.startsWith("34")) ? "34" + telLimpio : telLimpio;
+    let html = `<span class="modal-close-x" onclick="cerrarModal()">&times;</span><div class="modal-head-lobster">${datosWeb.config.NOMBRE}</div>`;
+    html += `<div class="modal-dato-arial-20">${nombre}</div>`;
+    const telDisplay = (pref === "+34") ? "34" + telLimpio : telLimpio;
     html += `<div class="modal-dato-arial-20">${telDisplay}</div>`;
-    
     let modoLabel = modalidad === "ENVIO" ? getTrad("ENVIO") + ": " + dir : (modalidad === "LLEVAR" ? getTrad("PARA_LLEVAR") : getTrad("PARA_TOMAR"));
-    html += `<div class="modal-dato-arial-20 dato-negrita">${modoLabel}</div><div class="linea-1px-continua"></div>`;
+    html += `<div class="modal-dato-arial-20"><b>${modoLabel}</b></div><div class="linea-1px-continua"></div>`;
     
     let subtotal = 0;
-    
     for(let key in pedido) {
-      let fila = pedido[key].cant * pedido[key].precio;
-      subtotal += fila;
-      let nombreProdTrad = getTrad(pedido[key].nombre);
-      let nombreSalsaTrad = (pedido[key].salsa_id && pedido[key].salsa_id !== "SIN_SALSA") ? " (" + getTrad(pedido[key].salsa_id) + ")" : "";
-      let nombreFull = nombreProdTrad + nombreSalsaTrad;
-
-      html += `<div class="modal-producto-item" style="display:flex; justify-content:space-between; gap: 20px; align-items: flex-start;">
-          <span style="text-align: left; flex: 1;">${pedido[key].cant}x ${nombreFull}</span>
-          <span style="white-space: nowrap; font-weight: bold;">${formatearPrecio(fila)}€</span>
-        </div>`;
+      let fila = pedido[key].cant * pedido[key].precio; subtotal += fila;
+      let nSalsa = (pedido[key].salsa_id !== "SIN_SALSA") ? " (" + getTrad(pedido[key].salsa_id) + ")" : "";
+      html += `<div class="modal-producto-item" style="display:flex; justify-content:space-between;"><span>${pedido[key].cant}x ${getTrad(pedido[key].nombre)}${nSalsa}</span><b>${formatearPrecio(fila)}€</b></div>`;
     }
-    
-    if(modalidad === "ENVIO") {
-      let rider = parseFloat(datosWeb.config.RIDER_PRECIO || 0);
-      subtotal += rider;
-      html += `<div class="modal-producto-item" style="display:flex; justify-content:space-between; gap: 20px;"><span>${getTrad("PRECIO_ENVIO")}</span><span style="white-space: nowrap; font-weight: bold;">${formatearPrecio(rider)}€</span></div>`;
-    }
-    
+    if(modalidad === "ENVIO") { subtotal += parseFloat(datosWeb.config.RIDER_PRECIO || 0); }
     if(obsVal) html += `<div class="linea-1px-continua"></div><div class="rev-obs-box">${obsVal}</div>`;
-    
     html += `<div class="modal-total-50-center">${getTrad("TOTAL")} ${formatearPrecio(subtotal)}€</div>`;
     
     let clPago = pago === "TARJETA" ? "CONFIRMAR_PAGO_TARJETA" : (pago === "BIZUM" ? "CONFIRMAR_PAGO_BIZUM" : "CONFIRMAR_PAGO_EFECTIVO");
-    
     html += `<button class="btn-modal-pago" onclick="confirmarEnvio()">${getTrad(clPago)}</button>`;
     html += `<button class="btn-modal-modificar" onclick="cerrarModal()">${getTrad("MODIFICAR_PEDIDO")}</button>`;
     box.innerHTML = html;
 
-// --- ESCENARIO 2: PEDIDO ENVIADO CON ÉXITO ---
   } else if(tipo === 'ENVIADO') {
-    box.innerHTML = `
-      <div style="text-align: center; padding: 20px;">
-        <div style="margin-bottom: 10px;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" fill="#28a745" class="bi bi-check-circle-fill" viewBox="0 0 16 16">
-            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
-          </svg>
-        </div>
-        <div class="modal-head-lobster" style="color: #28a745;">${getTrad("PEDIDO_ENVIADO")}</div>
-        <button class="btn-modal-ok-grande" style="background-color: #28a745; border: none; margin-top: 20px;" 
-                onclick="irAInicio()">OK</button>
-      </div>`;
-  
+    box.innerHTML = `<div style="text-align: center; padding: 20px;"><div class="modal-head-lobster" style="color: #28a745;">${getTrad("PEDIDO_ENVIADO")}</div><button class="btn-modal-ok-grande" onclick="irAInicio()">OK</button></div>`;
   } else if(tipo === 'ENVIANDO') {
     box.innerHTML = `<div class="modal-dato-arial-20" style="text-align:center;">${getTrad("ENVIANDO_PEDIDO")}...</div>`;
-  
   } else {
-    box.innerHTML = `
-      <span class="modal-close-x" onclick="cerrarModal()">&times;</span>
-      <div class="head-alerta-lobster">${getTrad("ATENCION")}</div>
-      <div class="txt-alerta-arial-25">${getTrad(tipo)}</div>
-      <button class="btn-modal-pago" style="margin-top:20px;" onclick="cerrarModal()">OK</button>
-    `;
+    box.innerHTML = `<span class="modal-close-x" onclick="cerrarModal()">&times;</span><div class="head-alerta-lobster">${getTrad("ATENCION")}</div><div class="txt-alerta-arial-25">${getTrad(tipo)}</div><button class="btn-modal-pago" onclick="cerrarModal()">OK</button>`;
   }
 }
 
@@ -582,97 +451,37 @@ function validarYRevisar() {
   const pago = document.querySelector('input[name="pago"]:checked');
   const nombre = document.getElementById("nombre-cliente").value.trim();
   const tel = document.getElementById("tel-cliente").value.trim();
-  const dir = document.getElementById("dir-cliente").value.trim();
-
-  // Si no hay productos, no hace nada
   if(Object.keys(pedido).length === 0) return;
-
-  // VENTANA: “ELIJA UNA MODALIDAD DE PEDIDO”
-  if(!mod) { 
-    abrirModal('MSG_FALTA_MODO'); 
-    return; 
-  }
-
-  // VENTANA: “ELIJA UN MODO DE PAGO”
-  if(!pago) { 
-    abrirModal('MSG_FALTA_PAGO'); 
-    return; 
-  }
-
-  // VENTANA: “FALTAN DATOS” (Nombre, Teléfono o Dirección si es Envío)
-  if(!nombre || !tel || (mod.value === "ENVIO" && !dir)) { 
-    abrirModal('MSG_FALTA_DATOS'); 
-    return; 
-  }
-
-  // Si todo está OK, abrimos la revisión de la comanda
+  if(!mod) { abrirModal('MSG_FALTA_MODO'); return; }
+  if(!pago) { abrirModal('MSG_FALTA_PAGO'); return; }
+  if(!nombre || !tel) { abrirModal('MSG_FALTA_DATOS'); return; }
   abrirModal('REVISION');
 }
 
 async function confirmarEnvio() {
   abrirModal('ENVIANDO');
-  
   const nombre = document.getElementById("nombre-cliente").value.trim().toUpperCase();
   const prefRadio = document.querySelector('input[name="pref"]:checked').value;
   let telLimpio = document.getElementById("tel-cliente").value.trim().replace(/[^0-9]/g, "");
-  const telefonoFinal = (prefRadio === "+34") ? "34" + telLimpio : telLimpio;
   const modInput = document.querySelector('input[name="modalidad"]:checked').value;
   const pago = document.querySelector('input[name="pago"]:checked').value;
   const direccion = document.getElementById("dir-cliente").value.trim().toUpperCase();
   const obs = document.getElementById("obs").value.trim().toUpperCase();
   
-  let productosArr = []; 
-  let subtotal = 0;
-
+  let productosArr = []; let subtotal = 0;
   for (let key in pedido) {
-    // Forzamos el índice 1 (ESPAÑOL) para que en la cocina siempre se lea igual
-    let nProd = getTrad(pedido[key].nombre, 1).toUpperCase();
-    let nSalsa = (pedido[key].salsa_id && pedido[key].salsa_id !== "SIN_SALSA") 
-                 ? " (" + getTrad(pedido[key].salsa_id, 1).toUpperCase() + ")" 
-                 : "";
-                 
-    let nombreFull = pedido[key].cant + "X " + nProd + nSalsa;
-    productosArr.push(nombreFull);
+    let nSalsa = (pedido[key].salsa_id !== "SIN_SALSA") ? " (" + getTrad(pedido[key].salsa_id, 1).toUpperCase() + ")" : "";
+    productosArr.push(pedido[key].cant + "X " + getTrad(pedido[key].nombre, 1).toUpperCase() + nSalsa);
     subtotal += (pedido[key].cant * pedido[key].precio);
   }
-
   if (modInput === "ENVIO") subtotal += parseFloat(datosWeb.config.RIDER_PRECIO || 0);
-  
-  // PREPARAMOS EL PAQUETE DE DATOS
-  const payload = { 
-    accion: 'guardar_pedido',
-    nombre: nombre, 
-    telefono: telefonoFinal, 
-    modalidad: modInput, 
-    metodoPago: pago,
-    direccion: direccion,
-    observaciones: obs,
-    total: subtotal,
-    resumenProductos: productosArr.join("\n"),
-    pedidoOriginal: pedido // Guardamos el objeto original por si necesitas auditoría
-  };
+
+  const payload = { accion: 'guardar_pedido', nombre, telefono: (prefRadio==="+34"?"34":"")+telLimpio, modalidad: modInput, metodoPago: pago, direccion, observaciones: obs, total: subtotal, resumenProductos: productosArr.join("\n") };
 
   try {
-    // ENVIAR A GOOGLE APPS SCRIPT
-    await fetch(URL_GAS, {
-      method: 'POST',
-      mode: 'no-cors', // Modo necesario para enviar datos desde GitHub a Google
-      headers: { 'Content-Type': 'text/plain' }, // Evita problemas de pre-flight CORS
-      body: JSON.stringify(payload)
-    });
-
-    // Como no-cors no permite leer la respuesta, si no hay error de red, damos el OK
-    setTimeout(() => {
-      pedido = {}; // Vaciamos el carrito
-      calcularTotal();
-      abrirModal('ENVIADO');
-    }, 500);
-
-  } catch (error) {
-    console.error("Error crítico enviando el pedido:", error);
-    alert("Hubo un error de conexión. Inténtalo de nuevo.");
-    abrirModal('REVISION'); // Devolvemos al usuario a la revisión
-  }
+    await fetch(URL_GAS, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+    setTimeout(() => { pedido = {}; abrirModal('ENVIADO'); }, 500);
+  } catch (e) { alert("Error de red"); abrirModal('REVISION'); }
 }
 </script>
 </body>
