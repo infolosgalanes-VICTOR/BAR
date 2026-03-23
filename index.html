@@ -67,11 +67,27 @@ body { margin:0; padding:0; font-family: Arial, sans-serif; background-color: #f
 .txt-alerta-arial-25 { font-family: Arial; font-size: 25px; color: #000; margin-bottom: 20px; }
 .btn-modal-ok-grande { background: #000; color: #FFF; border-radius: 10px; padding: 15px; font-family: Arial; font-weight: bold; font-size: 50px; cursor: pointer; text-transform: uppercase; width: 100%; border: none; }
 
-.input-custom { background: #FCF021; border: 2px solid #000; border-radius: 10px; font-family: Arial; color: #000; width: 100%; box-sizing: border-box; padding: 12px; margin: 15px 0; outline: none; }
+/* --- ENTRADAS CORREGIDAS PARA AMARILLO PERMANENTE --- */
+.input-custom { background: #FCF021 !important; border: 2px solid #000; border-radius: 10px; font-family: Arial; color: #000; width: 100%; box-sizing: border-box; padding: 12px; margin: 15px 0; outline: none; }
+.input-custom:focus { background: #FCF021 !important; outline: none; }
 #obs { font-size: 40px; }
 #nombre-cliente, #dir-cliente { font-size: 30px; }
-.tel-input-final { width: 100%; background: transparent; border: none; font-family: Arial; font-size: 30px; color: #000; outline: none; }
-.caja-tel-cliente { background: #FCF021; border: 2px solid #000; border-radius: 10px; width: 100%; box-sizing: border-box; padding: 15px; margin-top: 10px; }
+
+.caja-tel-cliente { background: #FCF021 !important; border: 2px solid #000; border-radius: 10px; width: 100%; box-sizing: border-box; padding: 15px; margin-top: 10px; }
+.tel-input-final { width: 100%; background: transparent !important; border: none; font-family: Arial; font-size: 30px; color: #000; outline: none; }
+.tel-input-final:focus { background: transparent !important; outline: none; }
+
+/* Evitar el color celeste automático de Chrome (Autofill) */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px #FCF021 inset !important;
+  -webkit-text-fill-color: #000 !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
 
 footer { width: 100%; text-align: center; padding: 20px 0; }
 .copyright { font-size: 10px; color: #000; }
