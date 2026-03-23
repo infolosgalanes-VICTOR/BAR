@@ -423,21 +423,16 @@ function abrirModal(tipo) {
     html += `<div class="modal-dato-arial-20"><b>${modoLabel}</b></div><div class="linea-1px-continua"></div>`;
     
     let subtotal = 0;
-    // 1. Productos
     for(let key in pedido) {
       let fila = pedido[key].cant * pedido[key].precio; subtotal += fila;
       let nSalsa = (pedido[key].salsa_id !== "SIN_SALSA") ? " (" + getTrad(pedido[key].salsa_id) + ")" : "";
       html += `<div class="modal-producto-item" style="display:flex; justify-content:space-between;"><span>${pedido[key].cant}x ${getTrad(pedido[key].nombre)}${nSalsa}</span><b>${formatearPrecio(fila)}€</b></div>`;
     }
 
-    // 2. LÍNEA DEL RIDER (Solo "RIDER" y precio)
     if(modalidad === "ENVIO") { 
       const precioRider = parseFloat(datosWeb.config.RIDER_PRECIO || 0);
       subtotal += precioRider;
-      html += `<div class="modal-producto-item" style="display:flex; justify-content:space-between; font-weight:bold; margin-top:5px;">
-                <span>RIDER</span>
-                <b>${formatearPrecio(precioRider)}€</b>
-               </div>`;
+      html += `<div class="modal-producto-item" style="display:flex; justify-content:space-between; font-weight:bold; margin-top:5px;"><span>RIDER</span><b>${formatearPrecio(precioRider)}€</b></div>`;
     }
 
     if(obsVal) html += `<div class="linea-1px-continua"></div><div class="rev-obs-box">${obsVal}</div>`;
@@ -487,15 +482,8 @@ async function confirmarEnvio() {
     let item = pedido[key];
     let nSalsa = (item.salsa_id !== "SIN_SALSA") ? " (" + getTrad(item.salsa_id, 1).toUpperCase() + ")" : "";
     let nombreCompleto = getTrad(item.nombre, 1).toUpperCase() + nSalsa;
-    
     productosArr.push(item.cant + "X " + nombreCompleto);
-    
-    detallesParaTicket.push({
-      nombre: nombreCompleto,
-      cantidad: item.cant,
-      precio: item.precio
-    });
-    
+    detallesParaTicket.push({ nombre: nombreCompleto, cantidad: item.cant, precio: item.precio });
     subtotal += (item.cant * item.precio);
   }
 
