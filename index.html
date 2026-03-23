@@ -406,7 +406,7 @@ function abrirModal(tipo) {
   modal.style.display = "flex";
   box.innerHTML = "";
 
-  if(tipo === 'REVISION') {
+if(tipo === 'REVISION') {
     const nombre = document.getElementById("nombre-cliente").value.toUpperCase();
     const pref = document.querySelector('input[name="pref"]:checked').value;
     const telLimpio = document.getElementById("tel-cliente").value.replace(/[^0-9]/g, '');
@@ -423,12 +423,23 @@ function abrirModal(tipo) {
     html += `<div class="modal-dato-arial-20"><b>${modoLabel}</b></div><div class="linea-1px-continua"></div>`;
     
     let subtotal = 0;
+    // 1. Productos
     for(let key in pedido) {
       let fila = pedido[key].cant * pedido[key].precio; subtotal += fila;
       let nSalsa = (pedido[key].salsa_id !== "SIN_SALSA") ? " (" + getTrad(pedido[key].salsa_id) + ")" : "";
       html += `<div class="modal-producto-item" style="display:flex; justify-content:space-between;"><span>${pedido[key].cant}x ${getTrad(pedido[key].nombre)}${nSalsa}</span><b>${formatearPrecio(fila)}€</b></div>`;
     }
-    if(modalidad === "ENVIO") { subtotal += parseFloat(datosWeb.config.RIDER_PRECIO || 0); }
+
+    // 2. LÍNEA DEL RIDER (Solo "RIDER" y precio)
+    if(modalidad === "ENVIO") { 
+      const precioRider = parseFloat(datosWeb.config.RIDER_PRECIO || 0);
+      subtotal += precioRider;
+      html += `<div class="modal-producto-item" style="display:flex; justify-content:space-between; font-weight:bold; margin-top:5px;">
+                <span>RIDER</span>
+                <b>${formatearPrecio(precioRider)}€</b>
+               </div>`;
+    }
+
     if(obsVal) html += `<div class="linea-1px-continua"></div><div class="rev-obs-box">${obsVal}</div>`;
     html += `<div class="modal-total-50-center">${getTrad("TOTAL")} ${formatearPrecio(subtotal)}€</div>`;
     
@@ -437,14 +448,7 @@ function abrirModal(tipo) {
     html += `<button class="btn-modal-modificar" onclick="cerrarModal()">${getTrad("MODIFICAR_PEDIDO")}</button>`;
     box.innerHTML = html;
 
-  } else if(tipo === 'ENVIADO') {
-    box.innerHTML = `<div style="text-align: center; padding: 20px;"><div class="modal-head-lobster" style="color: #28a745;">${getTrad("PEDIDO_ENVIADO")}</div><button class="btn-modal-ok-grande" onclick="irAInicio()">OK</button></div>`;
-  } else if(tipo === 'ENVIANDO') {
-    box.innerHTML = `<div class="modal-dato-arial-20" style="text-align:center;">${getTrad("ENVIANDO_PEDIDO")}...</div>`;
-  } else {
-    box.innerHTML = `<span class="modal-close-x" onclick="cerrarModal()">&times;</span><div class="head-alerta-lobster">${getTrad("ATENCION")}</div><div class="txt-alerta-arial-25">${getTrad(tipo)}</div><button class="btn-modal-pago" onclick="cerrarModal()">OK</button>`;
   }
-}
 
 function validarYRevisar() {
   const mod = document.querySelector('input[name="modalidad"]:checked');
