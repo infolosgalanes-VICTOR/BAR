@@ -941,26 +941,6 @@ function renderProductos(res) {
   });
 }
 
-function updateCant(id, delta) {
-  const p = datosWeb.productos.find(item => String(item.id) === String(id));
-  if (!p) return;
-  if (delta > 0) {
-    const sRaw = String(p.salsas || "").trim();
-    if (sRaw !== "" && sRaw !== "0" && sRaw !== "undefined") {
-      abrirSelectorSalsas(p);
-    } else {
-      gestionarCarrito(id, 1, "SIN_SALSA");
-    }
-  } else {
-    let keys = Object.keys(pedido).filter(k => String(pedido[k].id) === String(id));
-    if(keys.length > 1) {
-      alert(getTrad("MSG_QUITAR_DESDE_CARRITO"));
-    } else if(keys.length === 1) {
-      gestionarCarrito(id, -1, pedido[keys[0]].salsa_id || "SIN_SALSA");
-    }
-  }
-}
-
 function abrirSelectorSalsas(p) {
   const modal = document.getElementById("modal-container");
   const box = document.getElementById("modal-content");
