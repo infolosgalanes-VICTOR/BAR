@@ -146,12 +146,12 @@ let datosWeb = null;
 let lang = 'SP'; 
 let pedido = {};
 let seccionActual = null;
-let lastRes = null;
 
-// 2. EVENTO DE CARGA ÚNICO
+// 2. EVENTO DE CARGA OPTIMIZADO (Carga todo al inicio)
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    const urlLlamada = `${URL_GAS}?v=get_datos_web&t=${new Date().getTime()}`;
+    // Usamos v=get_all para traer configuración + secciones + productos en un solo viaje
+    const urlLlamada = `${URL_GAS}?v=get_all&t=${new Date().getTime()}`;
     const res = await fetch(urlLlamada);
     if (!res.ok) throw new Error("Error en la respuesta del servidor");
     const data = await res.json();
@@ -161,6 +161,361 @@ document.addEventListener("DOMContentLoaded", async () => {
     alert("Error de conexión con el servidor de datos.");
   }
 });
+
+function init(datos){
+  if(!datos || datos.error) return;
+  datosWeb = datos;
+  const logoEl = document.getElementById("logo");
+  logoEl.textContent = datosWeb.config.NOMBRE || "LOS GALANES";
+  logoEl.style.visibility = "visible";
+  crearIdiomas();
+  
+  let idio = (datosWeb.config && datosWeb.config.IDIOMA_POR_DEFECTO) ? datosWeb.config.IDIOMA_POR_DEFECTO : "SP";
+  if (idio === "ES") idio = "SP";
+  cambiarIdioma(idio); 
+  
+  const estado = (datosWeb.config.ESTADO_BAR || "").toString().toUpperCase().trim();
+  if (estado !== "ABIERTO") {
+    const mensajeEstado = getTrad(datosWeb.config.SI_CERRADO);
+    document.getElementById("msg-cerrado").textContent = mensajeEstado;
+    document.getElementById("msg-cerrado").style.display = "block";
+    document.getElementById("pantalla-abierto").style.display = "none";
+  } else {
+    document.getElementById("msg-cerrado").style.display = "none";
+    document.getElementById("pantalla-abierto").style.display = "block";
+  }
+}
+
+function formatearPrecio(v) { let n = parseFloat(v); return isNaN(n) ? "0" : (n % 1 === 0 ? n.toString() : n.toFixed(2)); }
+
+function crearIdiomas(){
+  const flags = ['SP','EN','FR','IT','PT','AL'].map(l => `<span class="icon-idioma" id="flag-${l}" onclick="cambiarIdioma('${l}')">${getFlag(l)}</span>`).join('');
+  document.getElementById("idiomas-main").innerHTML = flags;
+}
+function getFlag(l){ const f = {SP:'🇪🇸',EN:'🇬🇧',FR:'🇫🇷',IT:'🇮🇹',PT:'🇵🇹',AL:'🇩🇪'}; return f[l]; }
+
+function cambiarIdioma(nuevo) {
+  lang = nuevo;
+  document.querySelectorAll('.icon-idioma').forEach(f => f.id.includes(lang) ? f.classList.add('active') : f.classList.remove('active'));
+  document.getElementById("btn-salir-txt").textContent = getTrad("BTN_SALIR_TXT");
+  document.getElementById("frase_bienvenida").textContent = getTrad("MSG_BIENVENIDA");
+  document.getElementById("txt_tomar").textContent = getTrad("PARA_TOMAR");
+  document.getElementById("txt_llevar").textContent = getTrad("PARA_LLEVAR");
+  document.getElementById("txt_envio").textContent = getTrad("ENVIO");
+  document.getElementById("lbl_total").textContent = getTrad("TOTAL");
+  document.getElementById("txt_efectivo").textContent = getTrad("EFECTIVO");
+  document.getElementById("txt_tarjeta").textContent = getTrad("TARJETA");
+  document.getElementById("txt_bizum").textContent = getTrad("BIZUM");
+  document.getElementById("txt_prefijo").textContent = getTrad("TXT_PREFIJO");
+  document.getElementById("btn_revisar_comanda").textContent = getTrad("BTN_REVISAR_COMANDA");
+  document.getElementById("obs").placeholder = getTrad("TXT_OBS");
+  document.getElementById("nombre-cliente").placeholder = getTrad("TXT_NOMBRE");
+  document.getElementById("tel-cliente").placeholder = getTrad("TXT_TELEFONO");
+  document.getElementById("dir-cliente").placeholder = getTrad("TXT_DIRECCION");
+  
+  document.getElementById("txt_rider").textContent = "+" + formatearPrecio(datosWeb.config.RIDER_PRECIO || 0) + " €";
+  document.getElementById("copyright").textContent = (datosWeb.config.NOMBRE || "LOS GALANES") + " © " + getTrad("MSG_COPYRIGHT");
+
+  renderSecciones();
+  if(seccionActual) abrirSeccion(seccionActual.config);
+}
+
+function getTrad(c, columnaForzada) {
+  if (!datosWeb || !datosWeb.diccionario || !c) return c;
+  const entrada = datosWeb.diccionario[c.toString().toUpperCase().trim()];
+  if (entrada) { 
+    let cod = (columnaForzada === 1 || lang === 'SP') ? 'ES' : lang;
+    return entrada[cod] || entrada['ES'] || c; 
+  }
+  return c;
+}
+
+function normalizarClave(t) { return "SEC_" + String(t).toUpperCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+
+function renderSecciones() {
+  const cont = document.getElementById("secciones");
+  cont.innerHTML = "";
+  datosWeb.secciones.forEach(sec => {
+    if (sec.OPERATIVA.toUpperCase() === "SI") {
+      const btn = document.createElement("button");
+      btn.style.cssText = "font-size:24px; font-weight:bold; padding:18px; background-color:#FCF021; border:2px solid #000; border-radius:10px; cursor:pointer; width:100%;";
+      btn.textContent = getTrad(normalizarClave(sec.NOMBRE_DEFAULT));
+      btn.onclick = () => abrirSeccion(sec);
+      cont.appendChild(btn);
+    }
+  });
+}
+
+function abrirSeccion(sec) {
+  let n = sec.NOMBRE_DEFAULT;
+  seccionActual = { nombre: n, claveTrad: normalizarClave(n), fraseClave: sec.FRASE_SECCION, config: sec };
+  document.getElementById("pantalla-abierto").style.display = "none";
+  document.getElementById("vista-pedido").style.display = "block";
+  document.getElementById("titulo-display").textContent = getTrad(seccionActual.claveTrad);
+  
+  const tf = getTrad(sec.FRASE_SECCION);
+  document.getElementById("frase-sec-txt").textContent = tf || "";
+  document.getElementById("frase-sec-txt").style.display = tf ? "inline-block" : "none";
+
+  const opciones = [
+    { id: "opt-tomar", operativa: sec.PARA_TOMAR === "SI" },
+    { id: "opt-llevar", operativa: sec.PARA_LLEVAR === "SI" },
+    { id: "opt-envio",  operativa: sec.ENVIO === "SI" }
+  ];
+
+  let opcionesActivas = [];
+  opciones.forEach(opt => {
+    const el = document.getElementById(opt.id);
+    const radio = el.querySelector('input');
+    radio.checked = false;
+    if (opt.operativa) { 
+      el.classList.remove("opcion-deshabilitada"); radio.disabled = false; opcionesActivas.push(radio); 
+    } else { 
+      el.classList.add("opcion-deshabilitada"); radio.disabled = true; 
+    }
+  });
+
+  if (opcionesActivas.length === 1) { opcionesActivas[0].checked = true; toggleDireccion(); }
+
+  // Renderizado instantáneo desde memoria local
+  renderProductos();
+}
+
+function renderProductos() {
+  const cont = document.getElementById("lista-prods"); 
+  cont.innerHTML = "";
+  const mod = document.querySelector('input[name="modalidad"]:checked')?.value || "LOCAL";
+  const textoInfo = getTrad("INFO");
+
+  // Filtramos los productos que pertenecen a la sección actual
+  const productosSeccion = datosWeb.productos.filter(p => p.seccion === seccionActual.nombre);
+  
+  // Agrupar por categoría
+  const categorias = [...new Set(productosSeccion.map(p => p.categoria))];
+
+  categorias.forEach(cat => {
+    let html = "";
+    productosSeccion.filter(p => p.categoria === cat).forEach(p => {
+      if (p.soloLocal && mod !== "LOCAL") return;
+      let cantTotal = 0;
+      const pID = String(p.id).trim();
+      for(let key in pedido) { if(String(pedido[key].id).trim() === pID) cantTotal += pedido[key].cant; }
+      const pJson = JSON.stringify(p).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+
+      html += `
+      <div class="card-prod">
+        <div class="prod-info">
+          <span class="prod-nombre">${getTrad(p.nombre)}</span>
+          <button class="btn-info" onclick='verDetalleProducto(${pJson})'>${textoInfo}</button>
+        </div>
+        <div class="prod-control-derecha">
+          <div class="prod-precio">${formatearPrecio(p.precio)} €</div>
+          <div class="controles">
+            <button class="btn-cant btn-izq" onclick="updateCant('${pID}',-1)">-</button>
+            <div class="display-cant" id="cant-${pID}">${cantTotal > 0 ? cantTotal : ""}</div>
+            <button class="btn-cant btn-der" onclick="updateCant('${pID}',1)">+</button>
+          </div>
+        </div>
+      </div>`;
+    });
+    if (html) cont.innerHTML += `<div class="cat-header">${getTrad("CAT_"+cat.toUpperCase())}</div>` + html;
+  });
+}
+
+function updateCant(id, delta) {
+  const p = datosWeb.productos.find(item => String(item.id) === String(id));
+  if (!p) return;
+  if (delta > 0) {
+    const sRaw = String(p.salsas || "").trim();
+    if (sRaw !== "" && sRaw !== "0" && sRaw !== "undefined") {
+      abrirSelectorSalsas(p);
+    } else {
+      gestionarCarrito(id, 1, "SIN_SALSA");
+    }
+  } else {
+    let keys = Object.keys(pedido).filter(k => String(pedido[k].id) === String(id));
+    if(keys.length > 1) {
+      alert(getTrad("MSG_QUITAR_DESDE_CARRITO"));
+    } else if(keys.length === 1) {
+      gestionarCarrito(id, -1, pedido[keys[0]].salsa_id || "SIN_SALSA");
+    }
+  }
+}
+
+function abrirSelectorSalsas(p) {
+  const modal = document.getElementById("modal-container");
+  const box = document.getElementById("modal-content");
+  modal.style.display = "flex";
+  let titulo = p.nota_salsas ? getTrad(p.nota_salsas) : getTrad("SELECCIONA_SALSA");
+  let html = `<span class="modal-close-x" onclick="cerrarModal()">&times;</span><div class="modal-head-lobster">${titulo}</div><div class="contenedor-botones-salsas">`;
+  const listaSalsas = p.salsas.split(",").map(s => s.trim());
+  listaSalsas.forEach(claveSalsa => {
+    if (claveSalsa) html += `<button class="btn-salsa-vertical" onclick="confirmarSalsa('${p.id}', '${claveSalsa}')">${getTrad(claveSalsa).toUpperCase()}</button>`;
+  });
+  html += `</div>`;
+  box.innerHTML = html;
+}
+
+function confirmarSalsa(id, claveSalsa) { gestionarCarrito(id, 1, claveSalsa); cerrarModal(); }
+
+function gestionarCarrito(id, delta, claveSalsa) {
+  const p = datosWeb.productos.find(item => String(item.id).trim() === String(id).trim());
+  if(!p) return;
+  const sID = (!claveSalsa || claveSalsa === "SIN_SALSA") ? "SIN_SALSA" : claveSalsa;
+  const cartKey = (sID === "SIN_SALSA") ? String(id).trim() : String(id).trim() + "_" + sID;
+  if (!pedido[cartKey]) {
+    if (delta > 0) pedido[cartKey] = { id: String(id).trim(), nombre: p.nombre, salsa_id: sID, precio: parseFloat(p.precio) || 0, cant: 1 };
+  } else {
+    pedido[cartKey].cant += delta;
+    if (pedido[cartKey].cant <= 0) delete pedido[cartKey];
+  }
+  calcularTotal();
+  renderProductos();
+}
+
+function verDetalleProducto(p) {
+  const modal = document.getElementById("modal-container");
+  const box = document.getElementById("modal-content");
+  modal.style.display = "flex";
+  let html = `<span class="modal-close-x" onclick="cerrarModal()">&times;</span><div class="modal-head-lobster">${getTrad(p.nombre)}</div>`;
+  if(p.foto) html += `<img src="${p.foto}" class="img-detalle">`;
+  if(p.descripcion) html += `<div class="modal-dato-arial-20" style="text-align:center; margin-bottom:20px;">${getTrad(p.descripcion)}</div>`;
+  if(p.alergenos) html += `<div class="alergenos-detalle"><span class="alergenos-label-interna">${getTrad("VER_ALERGENOS")}</span>${p.alergenos}</div>`;
+  box.innerHTML = html;
+}
+
+function cerrarModal() { document.getElementById("modal-container").style.display = "none"; }
+
+function calcularTotal() {
+  let t = 0; for (let k in pedido) t += pedido[k].cant * pedido[k].precio;
+  document.getElementById("total-val").textContent = formatearPrecio(t);
+}
+
+function toggleDireccion() {
+  const m = document.querySelector('input[name="modalidad"]:checked')?.value;
+  document.getElementById("dir-cliente").style.display = (m === "ENVIO") ? "block" : "none";
+  if(seccionActual) renderProductos();
+}
+
+function irAInicio() { location.reload(); }
+
+function abrirModal(tipo) {
+  const modal = document.getElementById("modal-container");
+  const box = document.getElementById("modal-content");
+  modal.style.display = "flex";
+  box.innerHTML = "";
+
+  if(tipo === 'REVISION') {
+    const nombre = document.getElementById("nombre-cliente").value.toUpperCase();
+    const pref = document.querySelector('input[name="pref"]:checked').value;
+    const telLimpio = document.getElementById("tel-cliente").value.replace(/[^0-9]/g, '');
+    const modalidad = document.querySelector('input[name="modalidad"]:checked').value;
+    const dir = document.getElementById("dir-cliente").value.toUpperCase();
+    const pago = document.querySelector('input[name="pago"]:checked').value;
+    const obsVal = document.getElementById("obs").value.trim().toUpperCase();
+
+    let html = `<span class="modal-close-x" onclick="cerrarModal()">&times;</span><div class="modal-head-lobster">${datosWeb.config.NOMBRE}</div>`;
+    html += `<div class="modal-dato-arial-20">${nombre}</div>`;
+    const telDisplay = (pref === "+34") ? "34" + telLimpio : telLimpio;
+    html += `<div class="modal-dato-arial-20">${telDisplay}</div>`;
+    let modoLabel = modalidad === "ENVIO" ? getTrad("ENVIO") + ": " + dir : (modalidad === "LLEVAR" ? getTrad("PARA_LLEVAR") : getTrad("PARA_TOMAR"));
+    html += `<div class="modal-dato-arial-20"><b>${modoLabel}</b></div><div class="linea-1px-continua"></div>`;
+    
+    let subtotal = 0;
+    for(let key in pedido) {
+      let fila = pedido[key].cant * pedido[key].precio; subtotal += fila;
+      let nSalsa = (pedido[key].salsa_id !== "SIN_SALSA") ? " (" + getTrad(pedido[key].salsa_id) + ")" : "";
+      html += `<div class="modal-producto-item" style="display:flex; justify-content:space-between;"><span>${pedido[key].cant}x ${getTrad(pedido[key].nombre)}${nSalsa}</span><b>${formatearPrecio(fila)}€</b></div>`;
+    }
+
+    if(modalidad === "ENVIO") { 
+      const precioRider = parseFloat(datosWeb.config.RIDER_PRECIO || 0);
+      subtotal += precioRider;
+      html += `<div class="modal-producto-item" style="display:flex; justify-content:space-between; font-weight:bold; margin-top:5px;"><span>RIDER</span><b>${formatearPrecio(precioRider)}€</b></div>`;
+    }
+
+    if(obsVal) html += `<div class="linea-1px-continua"></div><div class="rev-obs-box">${obsVal}</div>`;
+    html += `<div class="modal-total-50-center">${getTrad("TOTAL")} ${formatearPrecio(subtotal)}€</div>`;
+    
+    let clPago = pago === "TARJETA" ? "CONFIRMAR_PAGO_TARJETA" : (pago === "BIZUM" ? "CONFIRMAR_PAGO_BIZUM" : "CONFIRMAR_PAGO_EFECTIVO");
+    html += `<button class="btn-modal-pago" onclick="confirmarEnvio()">${getTrad(clPago)}</button>`;
+    html += `<button class="btn-modal-modificar" onclick="cerrarModal()">${getTrad("MODIFICAR_PEDIDO")}</button>`;
+    box.innerHTML = html;
+
+  } else if(tipo === 'ENVIADO') {
+    box.innerHTML = `<div style="text-align: center; padding: 20px;"><div class="modal-head-lobster" style="color: #000;">${getTrad("PEDIDO_ENVIADO")}</div><button class="btn-modal-ok-grande" onclick="irAInicio()">OK</button></div>`;
+  } else if(tipo === 'ENVIANDO') {
+    box.innerHTML = `<div class="modal-dato-arial-20" style="text-align:center;">${getTrad("ENVIANDO_PEDIDO")}...</div>`;
+  } else {
+    box.innerHTML = `<span class="modal-close-x" onclick="cerrarModal()">&times;</span><div class="head-alerta-lobster">${getTrad("ATENCION")}</div><div class="txt-alerta-arial-25">${getTrad(tipo)}</div><button class="btn-modal-pago" onclick="cerrarModal()">OK</button>`;
+  }
+}
+
+function validarYRevisar() {
+  const mod = document.querySelector('input[name="modalidad"]:checked');
+  const pago = document.querySelector('input[name="pago"]:checked');
+  const nombre = document.getElementById("nombre-cliente").value.trim();
+  const tel = document.getElementById("tel-cliente").value.trim();
+  if(Object.keys(pedido).length === 0) return;
+  if(!mod) { abrirModal('MSG_FALTA_MODO'); return; }
+  if(!pago) { abrirModal('MSG_FALTA_PAGO'); return; }
+  if(!nombre || !tel) { abrirModal('MSG_FALTA_DATOS'); return; }
+  abrirModal('REVISION');
+}
+
+async function confirmarEnvio() {
+  abrirModal('ENVIANDO');
+  const nombre = document.getElementById("nombre-cliente").value.trim().toUpperCase();
+  const prefRadio = document.querySelector('input[name="pref"]:checked').value;
+  let telLimpio = document.getElementById("tel-cliente").value.trim().replace(/[^0-9]/g, "");
+  const modInput = document.querySelector('input[name="modalidad"]:checked').value;
+  const pago = document.querySelector('input[name="pago"]:checked').value;
+  const direccion = document.getElementById("dir-cliente").value.trim().toUpperCase();
+  const obs = document.getElementById("obs").value.trim().toUpperCase();
+  
+  let productosArr = []; 
+  let detallesParaTicket = [];
+  let subtotal = 0;
+
+  for (let key in pedido) {
+    let item = pedido[key];
+    let nSalsa = (item.salsa_id !== "SIN_SALSA") ? " (" + getTrad(item.salsa_id, 1).toUpperCase() + ")" : "";
+    let nombreCompleto = getTrad(item.nombre, 1).toUpperCase() + nSalsa;
+    productosArr.push(item.cant + "X " + nombreCompleto);
+    detallesParaTicket.push({ nombre: nombreCompleto, cantidad: item.cant, precio: item.precio });
+    subtotal += (item.cant * item.precio);
+  }
+
+  if (modInput === "ENVIO") {
+    subtotal += parseFloat(datosWeb.config.RIDER_PRECIO || 0);
+  }
+
+  const payload = { 
+    accion: 'guardar_pedido', 
+    nombre, 
+    telefono: (prefRadio==="+34"?"34":"") + telLimpio, 
+    modalidad: modInput, 
+    metodoPago: pago, 
+    direccion, 
+    observaciones: obs, 
+    total: subtotal, 
+    resumenProductos: productosArr.join("\n"),
+    pedidoOriginal: JSON.stringify({ productos: detallesParaTicket }) 
+  };
+
+  try {
+    await fetch(URL_GAS, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+    setTimeout(() => { 
+      pedido = {}; 
+      document.getElementById("total-val").textContent = "0"; 
+      abrirModal('ENVIADO'); 
+    }, 500);
+  } catch (e) { 
+    console.error(e);
+    alert("Error de red"); 
+    abrirModal('REVISION'); 
+  }
+}
 
 function init(datos){
   if(!datos || datos.error) return;
