@@ -347,16 +347,24 @@ function renderProductos(res) {
   const mod = document.querySelector('input[name="modalidad"]:checked')?.value || "LOCAL";
   const textoInfo = getTrad("INFO");
 
+  if (!res || !res.orden) return;
+
   res.orden.forEach(cat => {
     let html = "";
-    (res.productosPorCategoria[cat] || []).forEach(p => {
+    const productosDeCategoria = res.productosPorCategoria[cat] || [];
+    
+    productosDeCategoria.forEach(p => {
       if (p.soloLocal && mod !== "LOCAL") return;
-      let cant = 0;
+
+      // Aseguramos que el ID sea un string limpio
       const pID = String(p.id).trim();
+      let cant = 0;
       
-      // Buscamos si ya hay unidades en el carrito
-      for(let k in pedido) { if(String(pedido[k].id).trim() === pID) cant += pedido[k].cant; }
-      
+      // Buscamos cantidad en el carrito
+      for(let k in pedido) { 
+        if(String(pedido[k].id) === pID) cant += pedido[k].cant; 
+      }
+
       const pJson = JSON.stringify(p).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
 
       html += `
@@ -368,9 +376,9 @@ function renderProductos(res) {
         <div class="prod-control-derecha">
           <div class="prod-precio">${formatearPrecio(p.precio)} €</div>
           <div class="controles">
-            <button class="btn-cant btn-izq" onclick="updateCant('${pID}',-1)">-</button>
+            <button class="btn-cant btn-izq" onclick="updateCant('${pID}', -1)">-</button>
             <div class="display-cant" id="cant-${pID}">${cant > 0 ? cant : ""}</div>
-            <button class="btn-cant btn-der" onclick="updateCant('${pID}',1)">+</button>
+            <button class="btn-cant btn-der" onclick="updateCant('${pID}', 1)">+</button>
           </div>
         </div>
       </div>`;
@@ -380,20 +388,22 @@ function renderProductos(res) {
 }
 
 function updateCant(id, delta) {
-  // Buscamos el producto en la lista global que descargamos al inicio
+  // Buscamos el producto comparando IDs convertidos a String
   const p = datosWeb.productos.find(i => String(i.id) === String(id));
-  if (!p) return;
+  
+  if (!p) {
+    console.error("Producto no encontrado en datosWeb.productos con ID:", id);
+    return;
+  }
 
   if (delta > 0) {
     const s = String(p.salsas || "").trim();
-    // Si tiene salsas, abrimos el selector. Si no, al carrito directo.
-    if (s !== "" && s !== "0" && s !== "undefined") { 
+    if (s !== "" && s !== "0" && s !== "undefined" && s.toLowerCase() !== "null") { 
       abrirSelectorSalsas(p); 
     } else { 
       gestionarCarrito(id, 1, "SIN_SALSA"); 
     }
   } else {
-    // Para restar, buscamos qué variantes de ese producto hay en el pedido
     let keys = Object.keys(pedido).filter(k => String(pedido[k].id) === String(id));
     if(keys.length > 1) { 
       alert(getTrad("MSG_QUITAR_DESDE_CARRITO")); 
@@ -421,7 +431,7 @@ function confirmarSalsa(id, s) {
 }
 
 function gestionarCarrito(id, delta, sID) {
-  const p = datosWeb.productos.find(i => String(i.id).trim() === String(id).trim());
+  const p = datosWeb.productos.find(i => String(i.id) === String(id));
   if (!p) return;
 
   const s = sID || "SIN_SALSA";
@@ -429,25 +439,23 @@ function gestionarCarrito(id, delta, sID) {
 
   if (!pedido[key]) {
     if (delta > 0) {
-      pedido[key] = { 
-        id: id, 
-        nombre: p.nombre, 
-        salsa_id: s, 
-        precio: parseFloat(p.precio), 
-        cant: 1 
-      };
+      pedido[key] = { id: id, nombre: p.nombre, salsa_id: s, precio: parseFloat(p.precio), cant: 1 };
     }
   } else {
     pedido[key].cant += delta;
     if (pedido[key].cant <= 0) delete pedido[key];
   }
 
-  // Actualizar el total visual
-  let t = 0; 
-  for (let k in pedido) t += pedido[k].cant * pedido[k].precio;
-  document.getElementById("total-val").textContent = formatearPrecio(t);
+  // Recalcular TOTAL
+  let totalAcumulado = 0; 
+  for (let k in pedido) {
+    totalAcumulado += pedido[k].cant * pedido[k].precio;
+  }
+  
+  const elTotal = document.getElementById("total-val");
+  if(elTotal) elTotal.textContent = formatearPrecio(totalAcumulado);
 
-  // Refrescar la lista para que se vean los números actualizados
+  // Renderizamos de nuevo la sección actual para ver el cambio
   if(lastRes) renderProductos(lastRes);
 }
 
