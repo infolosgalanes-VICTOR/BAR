@@ -147,8 +147,9 @@ let lang = 'SP';
 let pedido = {};
 let seccionActual = null;
 let lastRes = null;
+let cacheProductos = {}; // Nueva caché para evitar esperas
 
-// 2. EVENTO DE CARGA (Estructura original recuperada)
+// 2. EVENTO DE CARGA ÚNICO
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     const urlLlamada = `${URL_GAS}?v=get_datos_web&t=${new Date().getTime()}`;
@@ -156,11 +157,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!res.ok) throw new Error("Error en la respuesta");
     const data = await res.json();
     init(data);
+    
+    // OPTIMIZACIÓN: Precargar todas las secciones operativas en segundo plano
+    precargarTodo(data.secciones);
+    
   } catch (e) { 
     console.error("Error:", e);
     alert("Error de conexión con el servidor de datos.");
   }
 });
+
+async function precargarTodo(secciones) {
+  secciones.forEach(async (sec) => {
+    if (sec.OPERATIVA.toUpperCase() === "SI") {
+      try {
+        const url = `${URL_GAS}?v=get_datos_seccion&seccion=${encodeURIComponent(sec.NOMBRE_DEFAULT)}&t=${new Date().getTime()}`;
+        const res = await fetch(url);
+        cacheProductos[sec.NOMBRE_DEFAULT] = await res.json();
+        console.log("Precargada sección:", sec.NOMBRE_DEFAULT);
+      } catch (e) { console.warn("Error precargando", sec.NOMBRE_DEFAULT); }
+    }
+  });
+}
 
 function init(datos){
   if(!datos || datos.error) return;
@@ -256,7 +274,6 @@ function renderSecciones() {
   datosWeb.secciones.forEach(sec => {
     if (sec.OPERATIVA.toUpperCase() === "SI") {
       const btn = document.createElement("button");
-      btn.className = "btn-seccion-estilo"; // Asegúrate de tener este estilo en tu CSS o usa el style inline anterior
       btn.style.cssText = "font-size:24px; font-weight:bold; padding:18px; background-color:#FCF021; border:2px solid #000; border-radius:10px; cursor:pointer; width:100%; margin-bottom:10px;";
       btn.textContent = getTrad(normalizarClave(sec.NOMBRE_DEFAULT));
       btn.onclick = () => abrirSeccion(sec);
@@ -290,12 +307,20 @@ async function abrirSeccion(sec) {
     }
   });
 
-  try {
-    const url = `${URL_GAS}?v=get_datos_seccion&seccion=${encodeURIComponent(n)}&t=${new Date().getTime()}`;
-    const res = await fetch(url);
-    lastRes = await res.json();
+  // SI YA ESTÁ EN CACHÉ, CARGA INSTANTÁNEA
+  if (cacheProductos[n]) {
+    lastRes = cacheProductos[n];
     renderProductos(lastRes);
-  } catch (e) { console.error(e); }
+  } else {
+    // Si no ha dado tiempo a precargar, lo pedimos de forma normal
+    try {
+      const url = `${URL_GAS}?v=get_datos_seccion&seccion=${encodeURIComponent(n)}&t=${new Date().getTime()}`;
+      const res = await fetch(url);
+      lastRes = await res.json();
+      cacheProductos[n] = lastRes;
+      renderProductos(lastRes);
+    } catch (e) { console.error(e); }
+  }
 }
 
 function renderProductos(res) {
@@ -437,7 +462,6 @@ function abrirModal(tipo) {
     box.innerHTML = html;
 
   } else if(tipo === 'ENVIADO') {
-    // CAMBIO A COLOR NEGRO AQUÍ
     box.innerHTML = `<div style="text-align:center; padding:20px;"><div class="modal-head-lobster" style="color:#000;">${getTrad("PEDIDO_ENVIADO")}</div><button class="btn-modal-ok-grande" onclick="irAInicio()">OK</button></div>`;
   } else if(tipo === 'ENVIANDO') {
     box.innerHTML = `<div class="modal-dato-arial-20" style="text-align:center;">${getTrad("ENVIANDO_PEDIDO")}...</div>`;
