@@ -388,23 +388,36 @@ function renderProductos(res) {
 }
 
 function updateCant(id, delta) {
-  // Buscamos en la lista maestra 'productos' que ahora viene en datosWeb
-  const p = datosWeb.productos.find(item => String(item.id) === String(id));
-  if (!p) return;
+  // Limpiamos el ID recibido por si acaso (minúsculas y solo letras/números)
+  const idLimpio = String(id).toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  // Buscamos en datosWeb usando la misma lógica de limpieza
+  const p = datosWeb.productos.find(item => 
+    String(item.id).toLowerCase().replace(/[^a-z0-9]/g, '') === idLimpio
+  );
+  
+  if (!p) {
+    console.error("No se encontró el producto con ID limpiado:", idLimpio);
+    return;
+  }
 
   if (delta > 0) {
     const sRaw = String(p.salsas || "").trim();
-    if (sRaw && sRaw !== "0" && sRaw !== "undefined") {
+    if (sRaw && sRaw !== "0" && sRaw !== "" && sRaw !== "undefined") {
       abrirSelectorSalsas(p);
     } else {
-      gestionarCarrito(id, 1, "SIN_SALSA");
+      gestionarCarrito(idLimpio, 1, "SIN_SALSA");
     }
   } else {
-    let keys = Object.keys(pedido).filter(k => String(pedido[k].id) === String(id));
+    // Para restar, buscamos en el pedido por el ID limpio
+    let keys = Object.keys(pedido).filter(k => 
+      String(pedido[k].id).toLowerCase().replace(/[^a-z0-9]/g, '') === idLimpio
+    );
+    
     if(keys.length > 1) {
-      alert(getTrad("MSG_QUITAR_DESDE_CARRITO"));
+      alert(getTrad("MSG_QUITAR_DESDE_CARRITO") || "Por favor, quita este producto desde el carrito.");
     } else if(keys.length === 1) {
-      gestionarCarrito(id, -1, pedido[keys[0]].salsa_id);
+      gestionarCarrito(idLimpio, -1, pedido[keys[0]].salsa_id);
     }
   }
 }
@@ -427,24 +440,38 @@ function confirmarSalsa(id, s) {
 }
 
 function gestionarCarrito(id, delta, sID) {
-  const p = datosWeb.productos.find(i => String(i.id) === String(id));
+  // Buscamos el producto siempre con el ID normalizado
+  const idLimpio = String(id).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const p = datosWeb.productos.find(i => 
+    String(i.id).toLowerCase().replace(/[^a-z0-9]/g, '') === idLimpio
+  );
+  
   if (!p) return;
-  const key = (sID === "SIN_SALSA") ? id : id + "_" + sID;
+  
+  const key = (sID === "SIN_SALSA") ? idLimpio : idLimpio + "_" + sID;
 
   if (!pedido[key]) {
     if (delta > 0) {
-      pedido[key] = { id: id, nombre: p.nombre, salsa_id: sID, precio: parseFloat(p.precio), cant: 1 };
+      pedido[key] = { 
+        id: idLimpio, 
+        nombre: p.nombre, // Aquí guardamos la CLAVE (ej: PROD_001)
+        salsa_id: sID, 
+        precio: parseFloat(p.precio), 
+        cant: 1 
+      };
     }
   } else {
     pedido[key].cant += delta;
     if (pedido[key].cant <= 0) delete pedido[key];
   }
 
+  // Actualizar el Total Visual
   let t = 0; 
   for (let k in pedido) t += pedido[k].cant * pedido[k].precio;
-  document.getElementById("total-val").textContent = formatearPrecio(t);
+  const elTotal = document.getElementById("total-val");
+  if(elTotal) elTotal.textContent = formatearPrecio(t);
   
-  // Refrescamos la vista para que se vea el número en el botón
+  // Refrescar la lista para que aparezca el número en el botón
   if(lastRes) renderProductos(lastRes);
 }
 
