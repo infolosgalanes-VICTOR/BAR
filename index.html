@@ -517,6 +517,60 @@ async function confirmarEnvio() {
   }
 }
 
+async function confirmarEnvio() {
+  abrirModal('ENVIANDO');
+  const nombre = document.getElementById("nombre-cliente").value.trim().toUpperCase();
+  const prefRadio = document.querySelector('input[name="pref"]:checked').value;
+  let telLimpio = document.getElementById("tel-cliente").value.trim().replace(/[^0-9]/g, "");
+  const modInput = document.querySelector('input[name="modalidad"]:checked').value;
+  const pago = document.querySelector('input[name="pago"]:checked').value;
+  const direccion = document.getElementById("dir-cliente").value.trim().toUpperCase();
+  const obs = document.getElementById("obs").value.trim().toUpperCase();
+  
+  let productosArr = []; 
+  let detallesParaTicket = [];
+  let subtotal = 0;
+
+  for (let key in pedido) {
+    let item = pedido[key];
+    let nSalsa = (item.salsa_id !== "SIN_SALSA") ? " (" + getTrad(item.salsa_id, 1).toUpperCase() + ")" : "";
+    let nombreCompleto = getTrad(item.nombre, 1).toUpperCase() + nSalsa;
+    productosArr.push(item.cant + "X " + nombreCompleto);
+    detallesParaTicket.push({ nombre: nombreCompleto, cantidad: item.cant, precio: item.precio });
+    subtotal += (item.cant * item.precio);
+  }
+
+  if (modInput === "ENVIO") {
+    subtotal += parseFloat(datosWeb.config.RIDER_PRECIO || 0);
+  }
+
+  const payload = { 
+    accion: 'guardar_pedido', 
+    nombre, 
+    telefono: (prefRadio==="+34"?"34":"") + telLimpio, 
+    modalidad: modInput, 
+    metodoPago: pago, 
+    direccion, 
+    observaciones: obs, 
+    total: subtotal, 
+    resumenProductos: productosArr.join("\n"),
+    pedidoOriginal: JSON.stringify({ productos: detallesParaTicket }) 
+  };
+
+  try {
+    await fetch(URL_GAS, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+    setTimeout(() => { 
+      pedido = {}; 
+      document.getElementById("total-val").textContent = "0"; 
+      abrirModal('ENVIADO'); 
+    }, 500);
+  } catch (e) { 
+    console.error(e);
+    alert("Error de red"); 
+    abrirModal('REVISION'); 
+  }
+}
+
 function init(datos){
   if(!datos || datos.error) return;
   datosWeb = datos;
