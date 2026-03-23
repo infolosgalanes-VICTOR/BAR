@@ -380,16 +380,26 @@ function renderProductos(res) {
 }
 
 function updateCant(id, delta) {
+  // Buscamos el producto en la lista global que descargamos al inicio
   const p = datosWeb.productos.find(i => String(i.id) === String(id));
   if (!p) return;
+
   if (delta > 0) {
     const s = String(p.salsas || "").trim();
-    if (s !== "" && s !== "0" && s !== "undefined") { abrirSelectorSalsas(p); } 
-    else { gestionarCarrito(id, 1, "SIN_SALSA"); }
+    // Si tiene salsas, abrimos el selector. Si no, al carrito directo.
+    if (s !== "" && s !== "0" && s !== "undefined") { 
+      abrirSelectorSalsas(p); 
+    } else { 
+      gestionarCarrito(id, 1, "SIN_SALSA"); 
+    }
   } else {
+    // Para restar, buscamos qué variantes de ese producto hay en el pedido
     let keys = Object.keys(pedido).filter(k => String(pedido[k].id) === String(id));
-    if(keys.length > 1) { alert(getTrad("MSG_QUITAR_DESDE_CARRITO")); } 
-    else if(keys.length === 1) { gestionarCarrito(id, -1, pedido[keys[0]].salsa_id); }
+    if(keys.length > 1) { 
+      alert(getTrad("MSG_QUITAR_DESDE_CARRITO")); 
+    } else if(keys.length === 1) { 
+      gestionarCarrito(id, -1, pedido[keys[0]].salsa_id); 
+    }
   }
 }
 
@@ -405,20 +415,39 @@ function abrirSelectorSalsas(p) {
   box.innerHTML = html + `</div>`;
 }
 
-function confirmarSalsa(id, s) { gestionarCarrito(id, 1, s); cerrarModal(); }
+function confirmarSalsa(id, s) { 
+  gestionarCarrito(id, 1, s); 
+  cerrarModal(); 
+}
 
 function gestionarCarrito(id, delta, sID) {
   const p = datosWeb.productos.find(i => String(i.id).trim() === String(id).trim());
+  if (!p) return;
+
   const s = sID || "SIN_SALSA";
   const key = (s === "SIN_SALSA") ? id : id + "_" + s;
+
   if (!pedido[key]) {
-    if (delta > 0) pedido[key] = { id: id, nombre: p.nombre, salsa_id: s, precio: parseFloat(p.precio), cant: 1 };
+    if (delta > 0) {
+      pedido[key] = { 
+        id: id, 
+        nombre: p.nombre, 
+        salsa_id: s, 
+        precio: parseFloat(p.precio), 
+        cant: 1 
+      };
+    }
   } else {
     pedido[key].cant += delta;
     if (pedido[key].cant <= 0) delete pedido[key];
   }
-  let t = 0; for (let k in pedido) t += pedido[k].cant * pedido[k].precio;
+
+  // Actualizar el total visual
+  let t = 0; 
+  for (let k in pedido) t += pedido[k].cant * pedido[k].precio;
   document.getElementById("total-val").textContent = formatearPrecio(t);
+
+  // Refrescar la lista para que se vean los números actualizados
   if(lastRes) renderProductos(lastRes);
 }
 
