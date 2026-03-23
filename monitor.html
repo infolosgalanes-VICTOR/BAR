@@ -64,6 +64,7 @@
 <div id="main" class="main"></div>
 
 <script>
+// URL DE TU SCRIPT DE GOOGLE
 const URL_GAS = "https://script.google.com/macros/s/AKfycbxSnZMQP9AxOyUpkLJYo1HD10yK1M96o8m5C5KzHGwR6HubEH8mZxydBcOKGkITsYUVPQ/exec";
 
 let estadoActual='ESPERANDO COBRO';
@@ -173,7 +174,6 @@ function enviarMensaje(tipo, indexPedido){
  } else { msg = bar + "\nPedido Nº " + idPed + "\n……………………………"; }
 
  let telfLimpio = telefonoRaw.replace(/'/g, "").replace(/\D/g, "");
- if (telfLimpio.startsWith("3434")) telfLimpio = telfLimpio.substring(2);
  const texto = encodeURIComponent(msg);
 
  if (tipo === "WA") window.open("https://wa.me/" + telfLimpio + "?text=" + texto, "_blank");
@@ -227,11 +227,11 @@ function render() {
     if (estadoObjetivo === "ESPERANDO COBRO") {
       botonesEstado = '<button class="btn-g" style="background:#23A80D;" onclick="cambiar(\'' + idPed + '\',\'PENDIENTE\')">PAGADO (A COCINA)</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\'' + idPed + '\',\'ELIMINADO\')">ELIMINAR</button>';
     } else if (estadoObjetivo === "PENDIENTE") {
-      botonesEstado = '<button class="btn-g" style="background:#2768F5;" onclick="cambiar(\'' + idPed + '\',\'COMPLETADO\')">PEDIDO LISTO</button><button class="btn-g" style="background:#DBDBDB;color:#333;" onclick="cambiar(\'' + idPed + '\',\'ESPERANDO COBRO\')">NO PAGADO</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\'' + idPed + '\',\'ELIMINADO\')">ELIMINAR</button>';
+      botonesEstado = '<button class="btn-g" style="background:#2768F5;" onclick="cambiar(\'' + idPed + '\',\'COMPLETADO\')">PEDIDO LISTO</button><button class="btn-g" style="background:#DBDBDB;color:#333;" onclick="cambiar(\'' + idPed + '\',\'ESPERANDO COBRO\')">PEDIDO NO PAGADO</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\'' + idPed + '\',\'ELIMINADO\')">ELIMINAR</button>';
     } else if (estadoObjetivo === "COMPLETADO") {
       botonesEstado = '<button class="btn-g" style="background:#DBDBDB;color:#333;" onclick="cambiar(\'' + idPed + '\',\'ESPERANDO COBRO\')">RECUPERAR</button><button class="btn-g" style="background:#CF0A0A;" onclick="cambiar(\'' + idPed + '\',\'ELIMINADO\')">ELIMINAR</button>';
     } else if (estadoObjetivo === "ELIMINADO") {
-      botonesEstado = '<button class="btn-g" style="background:#C5C4C4;color:#333;" onclick="cambiar(\'' + idPed + '\',\'ESPERANDO COBRO\')">RECUPERAR</button>';
+      botonesEstado = '<button class="btn-g" style="background:#C5C4C4;color:#333;" onclick="cambiar(\'' + idPed + '\',\'ESPERANDO COBRO\')">RECUPERAR PEDIDO</button>';
     }
 
     let htmlCrono = "";
@@ -268,39 +268,32 @@ function actualizarTiempos() {
     let inicioStr = el.getAttribute("data-inicio");
     if(!inicioStr) return;
     let fechaInicio = new Date(inicioStr);
-    if (isNaN(fechaInicio.getTime())) {
-       let partes = inicioStr.split(/[\/\s:]/);
-       if(partes.length >= 3) {
-          fechaInicio = new Date(partes[1] + "/" + partes[0] + "/" + partes[2] + " " + (partes[3]||"00") + ":" + (partes[4]||"00"));
-       }
-    }
     if (!isNaN(fechaInicio.getTime())) {
       const diffMs = ahora - fechaInicio;
       const min = Math.floor(diffMs / 60000);
       el.textContent = min + " min";
       if (min >= 20) el.style.color = "#FF0000";
       else el.style.color = "#FFFFFF";
-    } else {
-      el.textContent = "-- min";
     }
   });
 }
 
 function imprimirTicket(id){
   const idLimpio = id.replace(/'/g, "");
-  // Esto carga la URL en el iframe oculto 'printFrame'
   document.getElementById('printFrame').src = URL_GAS + "?v=imprimir&id=" + encodeURIComponent(idLimpio);
 }
 
+// FUNCIÓN CORREGIDA: Sincronizada con el Script de Google
 async function cambiar(id,est){
  try {
   await fetch(URL_GAS, {
     method: 'POST',
     mode: 'no-cors',
-    body: JSON.stringify({ accion: 'cambiar_estado', id: id, nuevoEstado: est })
+    body: JSON.stringify({ accion: 'actualizar_estado', id: id, nuevoEstado: est })
   });
-  setTimeout(refresh, 500);
- } catch(e) { console.error(e); }
+  // Pequeño retardo para dar tiempo a Google a escribir antes de refrescar
+  setTimeout(refresh, 800);
+ } catch(e) { console.error("Error al cambiar estado:", e); }
 }
 
 function abrirModalVaciar() { document.getElementById('modalVaciar').style.display = 'flex'; }
@@ -314,8 +307,8 @@ async function confirmarVaciar() {
       mode: 'no-cors',
       body: JSON.stringify({ accion: 'vaciar_papelera' })
     });
-    setTimeout(refresh, 500);
-  } catch(e) { console.error(e); }
+    setTimeout(refresh, 800);
+  } catch(e) { console.error("Error al vaciar:", e); }
 }
 
 setInterval(refresh, 10000); 
