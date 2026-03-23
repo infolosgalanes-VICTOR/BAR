@@ -444,7 +444,7 @@ function abrirModal(tipo) {
     box.innerHTML = html;
 
   } else if(tipo === 'ENVIADO') {
-    box.innerHTML = `<div style="text-align: center; padding: 20px;"><div class="modal-head-lobster" style="color: #28a745;">${getTrad("PEDIDO_ENVIADO")}</div><button class="btn-modal-ok-grande" onclick="irAInicio()">OK</button></div>`;
+    box.innerHTML = `<div style="text-align: center; padding: 20px;"><div class="modal-head-lobster" style="color: #000000;">${getTrad("PEDIDO_ENVIADO")}</div><button class="btn-modal-ok-grande" onclick="irAInicio()">OK</button></div>`;
   } else if(tipo === 'ENVIANDO') {
     box.innerHTML = `<div class="modal-dato-arial-20" style="text-align:center;">${getTrad("ENVIANDO_PEDIDO")}...</div>`;
   } else {
