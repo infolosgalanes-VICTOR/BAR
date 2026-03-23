@@ -236,8 +236,9 @@ function render() {
 
     let htmlCrono = "";
     if (estadoObjetivo === "PENDIENTE") {
-      const fechaISO = p[1];
-      htmlCrono = `<div class="tiempo-crono" data-inicio="${fechaISO}" style="position:absolute; top:15px; right:15px; font-family:Arial; font-weight:bold; font-size:40px; color:#FFFFFF;">0 min</div>`;
+      // Cambio a p[11] (Columna L: Hora Pago/Inicio Cocina)
+      const horaInicioCocina = p[11]; 
+      htmlCrono = `<div class="tiempo-crono" data-inicio="${horaInicioCocina}" style="position:absolute; top:15px; right:15px; font-family:Arial; font-weight:bold; font-size:40px; color:#FFFFFF;">0 min</div>`;
     }
 
     const div = document.createElement('div');
@@ -266,12 +267,16 @@ function actualizarTiempos() {
   const ahora = new Date();
   document.querySelectorAll(".tiempo-crono").forEach(el => {
     let inicioStr = el.getAttribute("data-inicio");
-    if(!inicioStr) return;
-    let fechaInicio = new Date(inicioStr);
+    if(!inicioStr || inicioStr === "" || inicioStr === "undefined") return;
+    
+    // El navegador interpreta la comilla simple o el formato de Sheets
+    let fechaInicio = new Date(inicioStr.replace(/'/g, ""));
     if (!isNaN(fechaInicio.getTime())) {
       const diffMs = ahora - fechaInicio;
       const min = Math.floor(diffMs / 60000);
-      el.textContent = min + " min";
+      const minVisual = min > 0 ? min : 0;
+      el.textContent = minVisual + " min";
+      
       if (min >= 20) el.style.color = "#FF0000";
       else el.style.color = "#FFFFFF";
     }
@@ -312,7 +317,7 @@ async function confirmarVaciar() {
 }
 
 setInterval(refresh, 10000); 
-setInterval(actualizarTiempos, 30000); 
+setInterval(actualizarTiempos, 60000); // Actualización cada minuto
 window.onload=refresh;
 </script>
 </body>
