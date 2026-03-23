@@ -196,16 +196,21 @@ async function precargarTodo(secciones) {
   });
 }
 
-function init(datos){
-  if(!datos || datos.error) return;
+function init(datos) {
+  if (!datos || datos.error) return;
   datosWeb = datos;
+  
+  // Guardamos el menú completo para que abrirSeccion no tenga que buscar nada fuera
+  if (datos.menuCompleto) {
+    cacheProductos = datos.menuCompleto;
+  }
+
   const logoEl = document.getElementById("logo");
   logoEl.textContent = datosWeb.config.NOMBRE || "LOS GALANES";
   logoEl.style.visibility = "visible";
   crearIdiomas();
   
   let idio = (datosWeb.config && datosWeb.config.IDIOMA_POR_DEFECTO) ? datosWeb.config.IDIOMA_POR_DEFECTO : "SP";
-  if (idio === "ES") idio = "SP";
   cambiarIdioma(idio); 
   
   const estado = (datosWeb.config.ESTADO_BAR || "").toString().toUpperCase().trim();
@@ -298,9 +303,10 @@ function renderSecciones() {
   });
 }
 
-async function abrirSeccion(sec) {
+function abrirSeccion(sec) {
   let n = sec.NOMBRE_DEFAULT;
   seccionActual = { nombre: n, claveTrad: normalizarClave(n), config: sec };
+  
   document.getElementById("pantalla-abierto").style.display = "none";
   document.getElementById("vista-pedido").style.display = "block";
   document.getElementById("titulo-display").textContent = getTrad(seccionActual.claveTrad);
@@ -323,19 +329,15 @@ async function abrirSeccion(sec) {
     }
   });
 
-  // SI YA ESTÁ EN CACHÉ, CARGA INSTANTÁNEA
-  if (cacheProductos[n]) {
-    lastRes = cacheProductos[n];
+  // CARGA INSTANTÁNEA: Usamos los productos que ya tenemos en cacheProductos
+  if (cacheProductos && cacheProductos[n]) {
+    lastRes = { 
+      orden: [n], 
+      productosPorCategoria: { [n]: cacheProductos[n] } 
+    };
     renderProductos(lastRes);
   } else {
-    // Si no ha dado tiempo a precargar, lo pedimos de forma normal
-    try {
-      const url = `${URL_GAS}?v=get_datos_seccion&seccion=${encodeURIComponent(n)}&t=${new Date().getTime()}`;
-      const res = await fetch(url);
-      lastRes = await res.json();
-      cacheProductos[n] = lastRes;
-      renderProductos(lastRes);
-    } catch (e) { console.error(e); }
+    document.getElementById("lista-prods").innerHTML = '<div style="margin-top:20px;">No hay productos en esta sección.</div>';
   }
 }
 
@@ -351,7 +353,10 @@ function renderProductos(res) {
       if (p.soloLocal && mod !== "LOCAL") return;
       let cant = 0;
       const pID = String(p.id).trim();
+      
+      // Buscamos si ya hay unidades en el carrito
       for(let k in pedido) { if(String(pedido[k].id).trim() === pID) cant += pedido[k].cant; }
+      
       const pJson = JSON.stringify(p).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
 
       html += `
