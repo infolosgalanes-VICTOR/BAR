@@ -146,12 +146,12 @@ let datosWeb = null;
 let lang = 'SP'; 
 let pedido = {};
 let seccionActual = null;
+let lastRes = null;
 
-// 2. EVENTO DE CARGA OPTIMIZADO (Carga todo al inicio)
+// 2. EVENTO DE CARGA ÚNICO
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    // Usamos v=get_all para traer configuración + secciones + productos en un solo viaje
-    const urlLlamada = `${URL_GAS}?v=get_all&t=${new Date().getTime()}`;
+    const urlLlamada = `${URL_GAS}?v=get_datos_web&t=${new Date().getTime()}`;
     const res = await fetch(urlLlamada);
     if (!res.ok) throw new Error("Error en la respuesta del servidor");
     const data = await res.json();
@@ -186,13 +186,20 @@ function init(datos){
   }
 }
 
-function formatearPrecio(v) { let n = parseFloat(v); return isNaN(n) ? "0" : (n % 1 === 0 ? n.toString() : n.toFixed(2)); }
+function formatearPrecio(v) { 
+  let n = parseFloat(v); 
+  return isNaN(n) ? "0" : (n % 1 === 0 ? n.toString() : n.toFixed(2)); 
+}
 
 function crearIdiomas(){
   const flags = ['SP','EN','FR','IT','PT','AL'].map(l => `<span class="icon-idioma" id="flag-${l}" onclick="cambiarIdioma('${l}')">${getFlag(l)}</span>`).join('');
   document.getElementById("idiomas-main").innerHTML = flags;
 }
-function getFlag(l){ const f = {SP:'🇪🇸',EN:'🇬🇧',FR:'🇫🇷',IT:'🇮🇹',PT:'🇵🇹',AL:'🇩🇪'}; return f[l]; }
+
+function getFlag(l){ 
+  const f = {SP:'🇪🇸',EN:'🇬🇧',FR:'🇫🇷',IT:'🇮🇹',PT:'🇵🇹',AL:'🇩🇪'}; 
+  return f[l]; 
+}
 
 function cambiarIdioma(nuevo) {
   lang = nuevo;
@@ -230,7 +237,9 @@ function getTrad(c, columnaForzada) {
   return c;
 }
 
-function normalizarClave(t) { return "SEC_" + String(t).toUpperCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+function normalizarClave(t) { 
+  return "SEC_" + String(t).toUpperCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
+}
 
 function renderSecciones() {
   const cont = document.getElementById("secciones");
@@ -246,7 +255,7 @@ function renderSecciones() {
   });
 }
 
-function abrirSeccion(sec) {
+async function abrirSeccion(sec) {
   let n = sec.NOMBRE_DEFAULT;
   seccionActual = { nombre: n, claveTrad: normalizarClave(n), fraseClave: sec.FRASE_SECCION, config: sec };
   document.getElementById("pantalla-abierto").style.display = "none";
@@ -277,25 +286,26 @@ function abrirSeccion(sec) {
 
   if (opcionesActivas.length === 1) { opcionesActivas[0].checked = true; toggleDireccion(); }
 
-  // Renderizado instantáneo desde memoria local
-  renderProductos();
+  try {
+    const urlProductos = `${URL_GAS}?v=get_datos_seccion&seccion=${encodeURIComponent(n)}&t=${new Date().getTime()}`;
+    const response = await fetch(urlProductos);
+    const res = await response.json();
+    lastRes = res; 
+    renderProductos(res);
+  } catch (error) {
+    console.error("Error productos:", error);
+  }
 }
 
-function renderProductos() {
+function renderProductos(res) {
   const cont = document.getElementById("lista-prods"); 
   cont.innerHTML = "";
   const mod = document.querySelector('input[name="modalidad"]:checked')?.value || "LOCAL";
   const textoInfo = getTrad("INFO");
 
-  // Filtramos los productos que pertenecen a la sección actual
-  const productosSeccion = datosWeb.productos.filter(p => p.seccion === seccionActual.nombre);
-  
-  // Agrupar por categoría
-  const categorias = [...new Set(productosSeccion.map(p => p.categoria))];
-
-  categorias.forEach(cat => {
+  res.orden.forEach(cat => {
     let html = "";
-    productosSeccion.filter(p => p.categoria === cat).forEach(p => {
+    (res.productosPorCategoria[cat] || []).forEach(p => {
       if (p.soloLocal && mod !== "LOCAL") return;
       let cantTotal = 0;
       const pID = String(p.id).trim();
@@ -370,7 +380,7 @@ function gestionarCarrito(id, delta, claveSalsa) {
     if (pedido[cartKey].cant <= 0) delete pedido[cartKey];
   }
   calcularTotal();
-  renderProductos();
+  if(lastRes) renderProductos(lastRes);
 }
 
 function verDetalleProducto(p) {
@@ -394,7 +404,7 @@ function calcularTotal() {
 function toggleDireccion() {
   const m = document.querySelector('input[name="modalidad"]:checked')?.value;
   document.getElementById("dir-cliente").style.display = (m === "ENVIO") ? "block" : "none";
-  if(seccionActual) renderProductos();
+  if(lastRes) renderProductos(lastRes);
 }
 
 function irAInicio() { location.reload(); }
@@ -461,6 +471,60 @@ function validarYRevisar() {
   if(!pago) { abrirModal('MSG_FALTA_PAGO'); return; }
   if(!nombre || !tel) { abrirModal('MSG_FALTA_DATOS'); return; }
   abrirModal('REVISION');
+}
+
+async function confirmarEnvio() {
+  abrirModal('ENVIANDO');
+  const nombre = document.getElementById("nombre-cliente").value.trim().toUpperCase();
+  const prefRadio = document.querySelector('input[name="pref"]:checked').value;
+  let telLimpio = document.getElementById("tel-cliente").value.trim().replace(/[^0-9]/g, "");
+  const modInput = document.querySelector('input[name="modalidad"]:checked').value;
+  const pago = document.querySelector('input[name="pago"]:checked').value;
+  const direccion = document.getElementById("dir-cliente").value.trim().toUpperCase();
+  const obs = document.getElementById("obs").value.trim().toUpperCase();
+  
+  let productosArr = []; 
+  let detallesParaTicket = [];
+  let subtotal = 0;
+
+  for (let key in pedido) {
+    let item = pedido[key];
+    let nSalsa = (item.salsa_id !== "SIN_SALSA") ? " (" + getTrad(item.salsa_id, 1).toUpperCase() + ")" : "";
+    let nombreCompleto = getTrad(item.nombre, 1).toUpperCase() + nSalsa;
+    productosArr.push(item.cant + "X " + nombreCompleto);
+    detallesParaTicket.push({ nombre: nombreCompleto, cantidad: item.cant, precio: item.precio });
+    subtotal += (item.cant * item.precio);
+  }
+
+  if (modInput === "ENVIO") {
+    subtotal += parseFloat(datosWeb.config.RIDER_PRECIO || 0);
+  }
+
+  const payload = { 
+    accion: 'guardar_pedido', 
+    nombre, 
+    telefono: (prefRadio==="+34"?"34":"") + telLimpio, 
+    modalidad: modInput, 
+    metodoPago: pago, 
+    direccion, 
+    observaciones: obs, 
+    total: subtotal, 
+    resumenProductos: productosArr.join("\n"),
+    pedidoOriginal: JSON.stringify({ productos: detallesParaTicket }) 
+  };
+
+  try {
+    await fetch(URL_GAS, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+    setTimeout(() => { 
+      pedido = {}; 
+      document.getElementById("total-val").textContent = "0"; 
+      abrirModal('ENVIADO'); 
+    }, 500);
+  } catch (e) { 
+    console.error(e);
+    alert("Error de red"); 
+    abrirModal('REVISION'); 
+  }
 }
 
 async function confirmarEnvio() {
