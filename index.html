@@ -406,7 +406,7 @@ function abrirModal(tipo) {
   modal.style.display = "flex";
   box.innerHTML = "";
 
-if(tipo === 'REVISION') {
+  if(tipo === 'REVISION') {
     const nombre = document.getElementById("nombre-cliente").value.toUpperCase();
     const pref = document.querySelector('input[name="pref"]:checked').value;
     const telLimpio = document.getElementById("tel-cliente").value.replace(/[^0-9]/g, '');
@@ -448,7 +448,14 @@ if(tipo === 'REVISION') {
     html += `<button class="btn-modal-modificar" onclick="cerrarModal()">${getTrad("MODIFICAR_PEDIDO")}</button>`;
     box.innerHTML = html;
 
+  } else if(tipo === 'ENVIADO') {
+    box.innerHTML = `<div style="text-align: center; padding: 20px;"><div class="modal-head-lobster" style="color: #28a745;">${getTrad("PEDIDO_ENVIADO")}</div><button class="btn-modal-ok-grande" onclick="irAInicio()">OK</button></div>`;
+  } else if(tipo === 'ENVIANDO') {
+    box.innerHTML = `<div class="modal-dato-arial-20" style="text-align:center;">${getTrad("ENVIANDO_PEDIDO")}...</div>`;
+  } else {
+    box.innerHTML = `<span class="modal-close-x" onclick="cerrarModal()">&times;</span><div class="head-alerta-lobster">${getTrad("ATENCION")}</div><div class="txt-alerta-arial-25">${getTrad(tipo)}</div><button class="btn-modal-pago" onclick="cerrarModal()">OK</button>`;
   }
+}
 
 function validarYRevisar() {
   const mod = document.querySelector('input[name="modalidad"]:checked');
@@ -473,7 +480,7 @@ async function confirmarEnvio() {
   const obs = document.getElementById("obs").value.trim().toUpperCase();
   
   let productosArr = []; 
-  let detallesParaTicket = []; // <-- ESTO ES LO QUE NECESITA EL TICKET
+  let detallesParaTicket = [];
   let subtotal = 0;
 
   for (let key in pedido) {
@@ -481,10 +488,8 @@ async function confirmarEnvio() {
     let nSalsa = (item.salsa_id !== "SIN_SALSA") ? " (" + getTrad(item.salsa_id, 1).toUpperCase() + ")" : "";
     let nombreCompleto = getTrad(item.nombre, 1).toUpperCase() + nSalsa;
     
-    // Texto para la columna RESUMEN (lo que ya tenías)
     productosArr.push(item.cant + "X " + nombreCompleto);
     
-    // Objeto detallado para la columna O (lo que necesita el TICKET)
     detallesParaTicket.push({
       nombre: nombreCompleto,
       cantidad: item.cant,
@@ -498,7 +503,6 @@ async function confirmarEnvio() {
     subtotal += parseFloat(datosWeb.config.RIDER_PRECIO || 0);
   }
 
-  // Construimos el paquete de datos para Google Sheets
   const payload = { 
     accion: 'guardar_pedido', 
     nombre, 
@@ -509,12 +513,10 @@ async function confirmarEnvio() {
     observaciones: obs, 
     total: subtotal, 
     resumenProductos: productosArr.join("\n"),
-    // ENVIAMOS EL DETALLE COMPLETO AQUÍ:
     pedidoOriginal: JSON.stringify({ productos: detallesParaTicket }) 
   };
 
   try {
-    // Enviamos a Apps Script
     await fetch(URL_GAS, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
     setTimeout(() => { 
       pedido = {}; 
